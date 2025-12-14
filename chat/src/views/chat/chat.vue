@@ -33,7 +33,18 @@ watch(isLogin, async (newVal, oldVal) => {
 
 const getMobileClass = computed(() => {
   if (isMobile.value) return ['rounded-none', 'shadow-none']
-  return ['rounded-none', 'shadow-md', 'dark:border-gray-900']
+  return [
+    'rounded-2xl',
+    'shadow-md',
+    'border',
+    'border-[color:var(--glass-border)]',
+    'bg-transparent',
+  ]
+})
+
+const getPagePaddingClass = computed(() => {
+  if (isMobile.value) return ''
+  return 'p-3 md:p-4'
 })
 
 const getContainerClass = computed(() => {
@@ -101,7 +112,7 @@ provide('createNewChatGroup', createNewChatGroup)
 </script>
 
 <template>
-  <div class="h-full transition-all">
+  <div class="h-full transition-all" :class="getPagePaddingClass">
     <div class="h-full overflow-hidden" :class="getMobileClass">
       <div class="z-40 h-full flex" :class="getContainerClass">
         <ChatBase class="w-full flex-1 transition-[margin] duration-500" />

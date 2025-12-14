@@ -8,7 +8,7 @@
     @touchend="onCloseMouseUp"
   >
     <div
-      class="vue-auth-box_ rounded-lg bg-white dark:bg-gray-800"
+      class="vue-auth-box_ glass-card aurora-border rounded-2xl"
       @mousedown.stop
       @touchstart.stop
     >
@@ -62,7 +62,7 @@
         <img class="reset_" @click="reset" :src="resetSvg" />
       </div>
       <div class="auth-control_">
-        <div class="range-box bg-gray-100 dark:bg-gray-700" :style="`height:${sliderBaseSize}px`">
+        <div class="range-box" :style="`height:${sliderBaseSize}px`">
           <div class="range-text">{{ sliderText }}</div>
           <div class="range-slider" ref="range-slider" :style="`width:${styleWidth}px`">
             <div
@@ -583,11 +583,13 @@ export default {
   left: 0;
   bottom: 0;
   right: 0;
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: var(--overlay-mask, rgba(0, 0, 0, 0.3));
   z-index: 999;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: opacity var(--motion-fast, 150ms) var(--motion-ease, ease);
   &.show_ {
     opacity: 1;
     pointer-events: auto;
@@ -602,7 +604,7 @@ export default {
   // background: #fff;
   user-select: none;
   // border-radius: 3px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
   .auth-body_ {
     position: relative;
     overflow: hidden;
@@ -732,7 +734,7 @@ export default {
       height: auto;
       z-index: 12;
       cursor: pointer;
-      transition: transform 200ms;
+      transition: transform var(--motion-fast, 150ms) var(--motion-ease, ease);
       transform: rotate(0deg);
       &:hover {
         transform: rotate(-90deg);
@@ -745,15 +747,19 @@ export default {
       width: 100%;
       // background-color: #eef1f8;
       margin-top: 20px;
-      border-radius: 3px;
-      box-shadow: 0 0 8px rgba(240, 240, 240, 0.6) inset;
+      border-radius: 9999px;
+      background: var(--glass-bg-secondary);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-inner-glow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       .range-text {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
         font-size: 14px;
-        color: #b7bcd1;
+        color: var(--text-tertiary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -764,7 +770,7 @@ export default {
         position: absolute;
         height: 100%;
         width: 50px;
-        background-color: rgba(106, 160, 255, 0.8);
+        background-color: rgba(var(--accent-cyan-rgb), 0.28);
         border-radius: 3px;
         .range-btn {
           position: absolute;
@@ -774,9 +780,9 @@ export default {
           right: 0;
           width: 50px;
           height: 100%;
-          background-color: #fff;
-          border-radius: 3px;
-          box-shadow: 0 0 4px #ccc;
+          background: var(--glass-bg-primary);
+          border-radius: 9999px;
+          box-shadow: var(--glass-shadow);
           cursor: pointer;
           & > div {
             width: 0;
@@ -786,26 +792,26 @@ export default {
             &:nth-child(2) {
               margin: 0 4px;
             }
-            border: solid 1px #6aa0ff;
+            border: solid 1px rgba(var(--accent-cyan-rgb), 0.6);
           }
           &:hover,
           &.isDown {
             & > div:first-child {
               border: solid 4px transparent;
               height: 0;
-              border-right-color: #6aa0ff;
+              border-right-color: rgba(var(--accent-cyan-rgb), 0.95);
             }
             & > div:nth-child(2) {
               border-width: 3px;
               height: 0;
               border-radius: 3px;
               margin: 0 6px;
-              border-right-color: #6aa0ff;
+              border-right-color: rgba(var(--accent-cyan-rgb), 0.95);
             }
             & > div:nth-child(3) {
               border: solid 4px transparent;
               height: 0;
-              border-left-color: #6aa0ff;
+              border-left-color: rgba(var(--accent-cyan-rgb), 0.95);
             }
           }
         }

@@ -63,14 +63,11 @@ const injectThemeStyles = () => {
       background: transparent !important;
       color: #abb2bf !important;
     }
-    
-    /* 容器背景 */
-    html:not(.dark) .code-block-wrapper {
-      background-color: #fafafa;
-    }
-    
-    html.dark .code-block-wrapper {
-      background-color: #2f2f2f;
+
+    /* 容器背景：交由语义 Token 与全局样式类控制 */
+    .code-block-wrapper {
+      background: var(--glass-bg-secondary);
+      border: 1px solid var(--glass-border);
     }
   `
   document.head.appendChild(style)
@@ -140,6 +137,17 @@ const onOpenImagePreviewer =
 
 const isHideTts = computed(() => Number(authStore.globalConfig?.isHideTts) === 1)
 const enableHtmlRender = computed(() => Number(authStore.globalConfig?.enableHtmlRender) !== 0)
+
+const promptReferenceItems = computed<string[]>(() => {
+  const raw = props.promptReference || ''
+  if (!raw) return []
+  const matches = raw.match(/{(.*?)}/g) || []
+  return matches
+    .map(str => str.slice(1, -1))
+    .map(str => str.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+})
 
 const searchResult = computed(() => {
   if (props.networkSearchResult) {
@@ -270,19 +278,27 @@ function stopBrowserTts() {
   }
 }
 
-const mdi = new MarkdownIt({
-  linkify: true,
-  html: enableHtmlRender.value,
-  highlight(code, language) {
-    const validLang = !!(language && hljs.getLanguage(language))
-    if (validLang) {
-      const lang = language ?? ''
-      return highlightBlock(hljs.highlight(code, { language: lang }).value, lang)
-    }
+function createMarkdownIt(options: { html: boolean; breaks: boolean }) {
+  return new MarkdownIt({
+    linkify: true,
+    html: options.html,
+    breaks: options.breaks,
+    highlight(code, language) {
+      const validLang = !!(language && hljs.getLanguage(language))
+      if (validLang) {
+        const lang = language ?? ''
+        return highlightBlock(hljs.highlight(code, { language: lang }).value, lang)
+      }
 
-    return highlightBlock(hljs.highlightAuto(code).value, '')
-  },
-})
+      return highlightBlock(hljs.highlightAuto(code).value, '')
+    },
+  })
+}
+
+// AI 消息：保持原本的 markdown 行为
+const mdi = createMarkdownIt({ html: enableHtmlRender.value, breaks: false })
+// 用户消息：渲染 Markdown + LaTeX，但禁止原始 HTML（避免 XSS），并保留换行
+const mdiUser = createMarkdownIt({ html: false, breaks: true })
 
 // 用于存储代码块复制按钮的定时器
 const copyTimeoutsMap = new Map()
@@ -403,7 +419,8 @@ function updateCopyButtonState(element: HTMLElement, blockId: string) {
   copyTimeoutsMap.set(blockId, timeoutId)
 }
 
-mdi.renderer.rules.image = function (tokens, idx, options, env, self) {
+function setupImageRenderer(mdit: MarkdownIt) {
+  mdit.renderer.rules.image = function (tokens, idx, options, env, self) {
   const token = tokens[idx]
   const src = token.attrGet('src')
   const title = token.attrGet('title')
@@ -418,7 +435,11 @@ mdi.renderer.rules.image = function (tokens, idx, options, env, self) {
       document.dispatchEvent(customEvent);
     })(event)"
   />`
+  }
 }
+
+setupImageRenderer(mdi)
+setupImageRenderer(mdiUser)
 
 const imageUrlArray = computed(() => {
   const val = props.imageUrl
@@ -464,51 +485,40 @@ const isImageUrl = computed(() => {
   return /\.(jpg|jpeg|png|gif|webp)$/i.test(props.imageUrl)
 })
 
-mdi.use(mila, { attrs: { target: '_blank', rel: 'noopener' } })
-mdi.use(mdKatex, {
-  blockClass: 'katexmath-block p-0 flex h-full items-center justify-start',
-  inlineClass: 'katexmath-inline',
-  errorColor: ' #cc0000',
-})
+function setupMarkdownPlugins(mdit: MarkdownIt) {
+  mdit.use(mila, { attrs: { target: '_blank', rel: 'noopener' } })
+  mdit.use(mdKatex, {
+    blockClass: 'katexmath-block p-0 flex h-full items-center justify-start',
+    inlineClass: 'katexmath-inline',
+    errorColor: ' #cc0000',
+  })
+}
 
-const text = computed(() => {
-  let value = props.content || ''
+setupMarkdownPlugins(mdi)
+setupMarkdownPlugins(mdiUser)
 
-  let modifiedValue = value
-    .replace(/\\\(\s*/g, '$')
-    .replace(/\s*\\\)/g, '$')
-    .replace(/\\\[\s*/g, '$$')
-    .replace(/\s*\\\]/g, '$$')
+function normalizeMarkdownAndMath(input: string) {
+  return (input || '')
+    // 兼容 AI 输出里可能出现的多重反斜杠：\\(\\) / \\[ \\]
+    .replace(/\\+\(\s*/g, '$')
+    .replace(/\s*\\+\)/g, '$')
+    .replace(/\\+\[\s*/g, '$$')
+    .replace(/\s*\\+\]/g, '$$')
+    // 引用按钮（原逻辑保留）
     .replace(
       /\[\[(\d+)\]\((https?:\/\/[^\)]+)\)\]/g,
       '<button class="bg-gray-500 text-white rounded-full w-4 h-4 mx-1 flex justify-center items-center text-sm hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 inline-flex" onclick="window.open(\'$2\', \'_blank\')">$1</button>'
     )
+}
 
-  if (!props.isUserMessage) {
-    return mdi.render(modifiedValue)
-  }
-
-  return modifiedValue
+const text = computed(() => {
+  const modifiedValue = normalizeMarkdownAndMath(props.content || '')
+  return props.isUserMessage ? mdiUser.render(modifiedValue) : mdi.render(modifiedValue)
 })
 
 const reasoningText = computed<string>(() => {
-  let value = props.reasoningText || ''
-
-  let modifiedValue = value
-    .replace(/\\\(\s*/g, '$')
-    .replace(/\s*\\\)/g, '$')
-    .replace(/\\\[\s*/g, '$$')
-    .replace(/\s*\\\]/g, '$$')
-    .replace(
-      /\[\[(\d+)\]\((https?:\/\/[^\)]+)\)\]/g,
-      '<button class="bg-gray-500 text-white rounded-full w-4 h-4 mx-1 flex justify-center items-center text-sm hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-500 inline-flex" onclick="window.open(\'$2\', \'_blank\')">$1</button>'
-    )
-
-  if (!props.isUserMessage) {
-    return mdi.render(modifiedValue)
-  }
-
-  return modifiedValue
+  const modifiedValue = normalizeMarkdownAndMath(props.reasoningText || '')
+  return props.isUserMessage ? mdiUser.render(modifiedValue) : mdi.render(modifiedValue)
 })
 
 function highlightBlock(str: string, lang?: string) {
@@ -516,11 +526,11 @@ function highlightBlock(str: string, lang?: string) {
 
   // 直接返回带样式的HTML
   return `<pre
-    class="max-w-full border border-gray-200 bg-[#AFB8C133] dark:border-gray-700 dark:bg-gray-750 transition-colors"
+    class="code-block-wrapper max-w-full transition-colors"
     id="${blockId}"
-    style="line-height: normal; margin: 0 !important; padding: 0 !important; border-radius: 0.75rem !important; width: 100% !important; overflow: hidden !important;"
-  ><div class="code-block-header sticky w-full h-10 flex justify-between items-center px-3 border-b border-gray-100 dark:border-gray-700 z-10">
-    <span class="text-gray-600 dark:text-gray-400 text-sm font-medium flex items-center">${lang || 'text'}</span>
+    style="line-height: normal; margin: 0 !important; padding: 0 !important; border-radius: 14px !important; width: 100% !important; overflow: hidden !important;"
+  ><div class="code-block-header sticky w-full h-10 flex justify-between items-center px-3 z-10">
+    <span class="text-sm font-medium flex items-center" style="color: var(--text-secondary)">${lang || 'text'}</span>
     <div class="flex gap-2">
       <button class="h-7 gap-1 btn-pill btn-copy" data-block-id="${blockId}">
         <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" class="copy-icon text-current"><path d="M13 12.4316V7.8125C13 6.2592 14.2592 5 15.8125 5H40.1875C41.7408 5 43 6.2592 43 7.8125V32.1875C43 33.7408 41.7408 35 40.1875 35H35.5163" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M32.1875 13H7.8125C6.2592 13 5 14.2592 5 15.8125V40.1875C5 41.7408 6.2592 43 7.8125 43H32.1875C33.7408 43 35 41.7408 35 40.1875V15.8125C35 14.2592 33.7408 13 32.1875 13Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>
@@ -530,7 +540,7 @@ function highlightBlock(str: string, lang?: string) {
       </button>
     </div>
   </div><code
-    class="hljs code-content-scrollable custom-scrollbar px-4 py-3 text-base bg-white dark:bg-[#282c34] rounded-b-2xl leading-normal code-container"
+    class="hljs code-content-scrollable custom-scrollbar px-4 py-3 text-base leading-normal code-container"
     style="margin-top: 0; padding-right: 0.75rem !important; padding-left: 0.75rem !important; display: block !important; white-space: pre !important; max-width: 100% !important; width: 100% !important; overflow-x: auto !important;"
   >${str}</code></pre>`
 }
@@ -1037,15 +1047,17 @@ function openSingleImagePreview(src: string) {
       <div v-if="!isUserMessage" class="w-full">
         <span
           v-if="loading && !text && !reasoningText"
-          class="inline-block w-3.5 h-3.5 ml-0.5 align-middle rounded-full animate-breathe dark:bg-gray-100 bg-gray-950"
+          class="inline-block w-3.5 h-3.5 ml-0.5 align-middle rounded-full animate-breathe bg-[color:var(--text-primary)] opacity-80"
         ></span>
-        <div
-          :class="[
-            'markdown-body text-gray-950 dark:text-gray-100',
-            { 'markdown-body-generate': loading || !text },
-          ]"
-          v-html="text"
-        ></div>
+        <div class="bubble-ai">
+          <div
+            :class="[
+              'markdown-body text-[color:var(--text-primary)]',
+              { 'markdown-body-generate': loading || !text },
+            ]"
+            v-html="text"
+          ></div>
+        </div>
       </div>
 
       <!-- 用户消息内容 -->
@@ -1056,14 +1068,10 @@ function openSingleImagePreview(src: string) {
         style="max-width: 100%"
       >
         <!-- 编辑模式 -->
-        <div
-          v-if="isEditable"
-          class="p-3 rounded-2xl w-full bg-opacity dark:bg-gray-750 break-words"
-          style="max-width: 100%"
-        >
+        <div v-if="isEditable" class="bubble-user w-full break-words" style="max-width: 100%">
           <textarea
             v-model="editableContent"
-            class="min-w-full text-base resize-none overflow-y-auto bg-transparent whitespace-pre-wrap text-gray-950 dark:text-gray-100"
+            class="min-w-full text-base resize-none overflow-y-auto bg-transparent whitespace-pre-wrap text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)]"
             style="max-height: 60vh"
             @input="adjustTextareaHeight"
             ref="textarea"
@@ -1101,12 +1109,9 @@ function openSingleImagePreview(src: string) {
           </div>
         </div>
         <!-- 只读模式 -->
-        <div
-          v-else
-          class="p-3 rounded-2xl text-base bg-opacity dark:bg-gray-750 break-words whitespace-pre-wrap text-gray-950 dark:text-gray-100"
-          v-text="text"
-          style="max-width: 100%"
-        />
+        <div v-else class="bubble-user text-base break-words" style="max-width: 100%">
+          <div class="markdown-body text-[color:var(--text-primary)]" v-html="text"></div>
+        </div>
       </div>
     </div>
 
@@ -1142,19 +1147,11 @@ function openSingleImagePreview(src: string) {
     </div>
 
     <!-- 后续提问建议 -->
-    <div
-      v-if="promptReference && !isUserMessage && isLast"
-      class="flex-row transition-opacity duration-500"
-    >
+    <div v-if="promptReferenceItems.length && !isUserMessage && isLast" class="flex-row transition-opacity duration-500">
       <button
-        v-for="(item, index) in promptReference
-          ? promptReference
-              .match(/{(.*?)}/g)
-              ?.map((str: string | any[]) => str.slice(1, -1))
-              .slice(0, 3)
-          : []"
-        :key="index"
-        @click="handleMessage(item as string)"
+        v-for="(item, index) in promptReferenceItems"
+        :key="`${index}-${item}`"
+        @click="handleMessage(item)"
         class="flex items-center overflow-hidden btn-pill py-4 px-4 mt-3"
       >
         {{ item }}

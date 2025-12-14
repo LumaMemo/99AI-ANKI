@@ -219,23 +219,21 @@ function openSettings(tab?: number) {
 <template>
   <div>
     <div
-      class="fixed top-0 left-0 z-40 h-full transition-all duration-500 ease-in-out"
+      class="fixed top-0 left-0 z-40 h-full md:top-4 md:left-4 md:bottom-4 md:h-auto transition-all duration-500 ease-in-out"
       :class="[
-        isMobile ? 'w-[260px]' : 'w-[260px]',
+        isMobile ? 'w-[82vw] max-w-[260px]' : 'w-[260px]',
         collapsed ? '-translate-x-full' : 'translate-x-0',
       ]"
       :style="getMobileClass"
     >
       <div
-        class="flex flex-col h-full bg-opacity dark:bg-gray-900 select-none"
+        class="glass-card overflow-hidden flex flex-col h-full select-none"
         :style="mobileSafeArea"
       >
         <main class="flex flex-col h-full flex-1">
-          <div
-            class="flex bg-opacity w-full justify-between items-center px-4 dark:bg-gray-900 pt-3"
-          >
+          <div class="flex w-full justify-between items-center px-4 pt-3">
             <div
-              class="w-full py-1 text-primary-600 dark:text-gray-100 text-lg font-bold flex justify-between items-center"
+              class="w-full py-1 text-[color:var(--text-primary)] text-lg font-bold flex justify-between items-center"
             >
               <!-- 左边的图标 -->
               <img :src="logoPath" alt="Logo" class="h-7 w-7 rounded-lg" />
@@ -263,7 +261,7 @@ function openSettings(tab?: number) {
             <List />
           </div>
           <div
-            class="p-4 pb-1 py-2 border-t-gray-100 dark:border-t-gray-800 flex items-center justify-between text-left w-full"
+            class="p-4 pb-1 py-2 border-t border-[color:var(--glass-border)] flex items-center justify-between text-left w-full"
           >
             <!-- 登录用户 - 直接点击打开设置对话框 -->
             <div

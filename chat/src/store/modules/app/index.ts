@@ -16,12 +16,18 @@ export const useAppStore = defineStore('app-store', {
       this.theme = theme
       window.theme = theme
       this.recordState()
-      // 切换暗黑模式逻辑
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+
+      const html = document.documentElement
+      // 统一主题状态：Tailwind 依赖 `.dark`，CSS 变量依赖 `data-theme`
+      const resolvedTheme =
+        theme === 'auto'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : theme
+
+      html.dataset.theme = resolvedTheme
+      html.classList.toggle('dark', resolvedTheme === 'dark')
     },
 
     setLanguage(language: Language) {

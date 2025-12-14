@@ -682,19 +682,17 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
       :class="{ 'max-h-[70vh]': !isMobile }"
     >
       <!-- 用户基本信息卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4 flex flex-col space-y-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4 flex flex-col space-y-4">
         <!-- 卡片标题 -->
         <div
-          class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700"
+          class="text-base font-semibold text-[color:var(--text-primary)] mb-2 pb-2 border-b border-[color:var(--glass-border)]"
         >
           个人信息
         </div>
 
         <!-- 头像展示 -->
         <div class="flex items-center">
-          <div class="w-20 text-gray-500 dark:text-gray-400">头像</div>
+          <div class="w-20 text-[color:var(--text-tertiary)]">头像</div>
           <!-- <div>
             <img :src="avatar" alt="头像" class="w-20 h-20 rounded-full cursor-pointer" />
           </div> -->
@@ -706,21 +704,25 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
 
         <!-- 用户信息展示 - 每行一个信息 -->
         <!-- <div class="flex items-center">
-          <div class="w-24 text-gray-500 dark:text-gray-400">用户名</div>
-          <div class="text-gray-900 dark:text-gray-200">
+          <div class="w-24 text-[color:var(--text-tertiary)]">用户名</div>
+          <div class="text-[color:var(--text-primary)]">
             {{ username || '未设置' }}
           </div>
         </div> -->
 
         <div class="flex items-center">
-          <div class="w-20 text-gray-500 dark:text-gray-400">昵称</div>
+          <div class="w-20 text-[color:var(--text-tertiary)]">昵称</div>
           <div v-if="!isEditingInfo" class="flex items-center">
-            <div class="text-gray-900 dark:text-gray-200">
+            <div class="text-[color:var(--text-primary)]">
               {{ nickname || '未设置' }}
             </div>
             <div class="group relative ml-2">
               <button @click="startEditingInfo" class="btn-icon btn-sm" aria-label="编辑昵称">
-                <Edit theme="outline" size="16" class="text-gray-500 hover:text-primary-600" />
+                <Edit
+                  theme="outline"
+                  size="16"
+                  class="text-[color:var(--text-tertiary)] hover:text-primary-600"
+                />
               </button>
               <div class="tooltip tooltip-right">编辑</div>
             </div>
@@ -737,18 +739,16 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
         </div>
 
         <div v-if="shouldShowEmail" class="flex items-center">
-          <div class="w-20 text-gray-500 dark:text-gray-400">邮箱</div>
-          <div class="text-gray-900 dark:text-gray-200">{{ email }}</div>
+          <div class="w-20 text-[color:var(--text-tertiary)]">邮箱</div>
+          <div class="text-[color:var(--text-primary)]">{{ email }}</div>
         </div>
       </div>
 
       <!-- 账户安全卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4 flex flex-col space-y-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4 flex flex-col space-y-4">
         <!-- 卡片标题 -->
         <div
-          class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700"
+          class="text-base font-semibold text-[color:var(--text-primary)] mb-2 pb-2 border-b border-[color:var(--glass-border)]"
         >
           账户安全
         </div>
@@ -759,11 +759,11 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           <div v-if="phoneLoginStatus" class="flex items-center justify-between">
             <div class="flex items-center">
               <div>
-                <div class="text-gray-900 dark:text-gray-200 flex items-center">
+                <div class="text-[color:var(--text-primary)] flex items-center">
                   手机绑定
-                  <Phone theme="outline" size="16" class="text-gray-500 ml-1" />
+                  <Phone theme="outline" size="16" class="text-[color:var(--text-tertiary)] ml-1" />
                 </div>
-                <div class="text-xs text-gray-500">
+                <div class="text-xs text-[color:var(--text-tertiary)]">
                   {{ phoneBindInfo.status === 'bound' ? '已绑定' : '未绑定' }}
                   {{ phoneBindInfo.phone || '' }}
                 </div>
@@ -783,11 +783,15 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           <div v-if="wechatRegisterStatus" class="flex items-center justify-between">
             <div class="flex items-center">
               <div>
-                <div class="text-gray-900 dark:text-gray-200 flex items-center">
+                <div class="text-[color:var(--text-primary)] flex items-center">
                   微信绑定
-                  <Wechat theme="outline" size="16" class="text-gray-500 ml-1" />
+                  <Wechat
+                    theme="outline"
+                    size="16"
+                    class="text-[color:var(--text-tertiary)] ml-1"
+                  />
                 </div>
-                <div class="text-xs text-gray-500">
+                <div class="text-xs text-[color:var(--text-tertiary)]">
                   {{ isWxBound ? '已绑定微信' : '未绑定微信' }}
                 </div>
               </div>
@@ -801,11 +805,15 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           <div v-if="openIdentity" class="flex items-center justify-between">
             <div class="flex items-center">
               <div>
-                <div class="text-gray-900 dark:text-gray-200 flex items-center">
+                <div class="text-[color:var(--text-primary)] flex items-center">
                   实名认证
-                  <IdCard theme="outline" size="16" class="text-gray-500 ml-1" />
+                  <IdCard
+                    theme="outline"
+                    size="16"
+                    class="text-[color:var(--text-tertiary)] ml-1"
+                  />
                 </div>
-                <div class="text-xs text-gray-500">
+                <div class="text-xs text-[color:var(--text-tertiary)]">
                   {{ identityStatus === 'verified' ? '已认证' : '未认证' }}
                 </div>
               </div>
@@ -824,11 +832,13 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           <div class="flex items-center justify-between">
             <div class="flex items-center">
               <div>
-                <div class="text-gray-900 dark:text-gray-200 flex items-center">
+                <div class="text-[color:var(--text-primary)] flex items-center">
                   账户密码
-                  <Lock theme="outline" size="16" class="text-gray-500 ml-1" />
+                  <Lock theme="outline" size="16" class="text-[color:var(--text-tertiary)] ml-1" />
                 </div>
-                <div class="text-xs text-gray-500">定期修改密码可以保护账户安全</div>
+                <div class="text-xs text-[color:var(--text-tertiary)]">
+                  定期修改密码可以保护账户安全
+                </div>
               </div>
             </div>
             <button @click="showPasswordView" class="btn btn-secondary btn-sm">修改</button>
@@ -843,21 +853,22 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
       class="max-h-[70vh] overflow-y-auto custom-scrollbar p-2"
     >
       <!-- 修改密码卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4">
         <!-- 卡片标题 -->
-        <div class="flex items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-          <button @click="backToMainView" class="text-gray-500 hover:text-gray-700 mr-2">
+        <div class="flex items-center mb-4 pb-2 border-b border-[color:var(--glass-border)]">
+          <button
+            @click="backToMainView"
+            class="text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] mr-2"
+          >
             <ArrowLeft size="18" />
           </button>
-          <div class="text-base font-semibold text-gray-900 dark:text-gray-100">修改密码</div>
+          <div class="text-base font-semibold text-[color:var(--text-primary)]">修改密码</div>
         </div>
 
         <form @submit.prevent="handlePasswordFormSubmit" class="flex flex-col space-y-4">
           <!-- 新密码 -->
           <div class="flex flex-col space-y-1">
-            <label for="new-password" class="text-sm text-gray-700 dark:text-gray-300"
+            <label for="new-password" class="text-sm text-[color:var(--text-secondary)]"
               >新密码</label
             >
             <input
@@ -868,13 +879,15 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
               class="input input-md w-full"
               required
             />
-            <div class="text-xs text-gray-500">密码长度8-20个字符，必须包含字母和数字</div>
+            <div class="text-xs text-[color:var(--text-tertiary)]">
+              密码长度8-20个字符，必须包含字母和数字
+            </div>
             <div v-if="passwordError" class="text-xs text-red-500 mt-1">{{ passwordError }}</div>
           </div>
 
           <!-- 确认新密码 -->
           <div class="flex flex-col space-y-1">
-            <label for="confirm-password" class="text-sm text-gray-700 dark:text-gray-300"
+            <label for="confirm-password" class="text-sm text-[color:var(--text-secondary)]"
               >确认新密码</label
             >
             <input
@@ -911,20 +924,21 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
       class="max-h-[70vh] overflow-y-auto custom-scrollbar p-2"
     >
       <!-- 手机绑定卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4">
         <!-- 卡片标题 -->
-        <div class="flex items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-          <button @click="backToMainView" class="text-gray-500 hover:text-gray-700 mr-2">
+        <div class="flex items-center mb-4 pb-2 border-b border-[color:var(--glass-border)]">
+          <button
+            @click="backToMainView"
+            class="text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] mr-2"
+          >
             <ArrowLeft size="18" />
           </button>
-          <div class="text-base font-semibold text-gray-900 dark:text-gray-100">绑定手机号</div>
+          <div class="text-base font-semibold text-[color:var(--text-primary)]">绑定手机号</div>
         </div>
 
         <div class="space-y-4">
           <div>
-            <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="block mb-1 text-sm font-medium text-[color:var(--text-secondary)]">
               手机号码
             </label>
             <input
@@ -935,7 +949,7 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           </div>
           <div class="flex space-x-2">
             <div class="flex-1">
-              <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label class="block mb-1 text-sm font-medium text-[color:var(--text-secondary)]">
                 验证码
               </label>
               <input
@@ -959,9 +973,9 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
             <input
               v-model="agreedToUserAgreement"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+              class="h-4 w-4 rounded border-[color:var(--glass-border)] text-primary-600 focus:ring-primary-600"
             />
-            <p class="ml-1 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p class="ml-1 text-center text-sm text-[color:var(--text-tertiary)]">
               已阅读并同意
               <a
                 href="#"
@@ -987,20 +1001,21 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
       class="max-h-[70vh] overflow-y-auto custom-scrollbar p-2"
     >
       <!-- 实名认证卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4">
         <!-- 卡片标题 -->
-        <div class="flex items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-          <button @click="backToMainView" class="text-gray-500 hover:text-gray-700 mr-2">
+        <div class="flex items-center mb-4 pb-2 border-b border-[color:var(--glass-border)]">
+          <button
+            @click="backToMainView"
+            class="text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] mr-2"
+          >
             <ArrowLeft size="18" />
           </button>
-          <div class="text-base font-semibold text-gray-900 dark:text-gray-100">实名认证</div>
+          <div class="text-base font-semibold text-[color:var(--text-primary)]">实名认证</div>
         </div>
 
         <div class="space-y-4">
           <div>
-            <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="block mb-1 text-sm font-medium text-[color:var(--text-secondary)]">
               真实姓名
             </label>
             <input
@@ -1010,7 +1025,7 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
             />
           </div>
           <div>
-            <label class="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="block mb-1 text-sm font-medium text-[color:var(--text-secondary)]">
               身份证号
             </label>
             <input
@@ -1024,9 +1039,9 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
             <input
               v-model="agreedToUserAgreement"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-600"
+              class="h-4 w-4 rounded border-[color:var(--glass-border)] text-primary-600 focus:ring-primary-600"
             />
-            <p class="ml-1 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p class="ml-1 text-center text-sm text-[color:var(--text-tertiary)]">
               已阅读并同意
               <a
                 href="#"
@@ -1049,15 +1064,16 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
     <!-- 微信绑定视图 -->
     <div v-else-if="activeView === 'wx'" class="max-h-[70vh] overflow-y-auto custom-scrollbar p-2">
       <!-- 微信绑定卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4">
         <!-- 卡片标题 -->
-        <div class="flex items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
-          <button @click="backToMainView" class="text-gray-500 hover:text-gray-700 mr-2">
+        <div class="flex items-center mb-4 pb-2 border-b border-[color:var(--glass-border)]">
+          <button
+            @click="backToMainView"
+            class="text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] mr-2"
+          >
             <ArrowLeft size="18" />
           </button>
-          <div class="text-base font-semibold text-gray-900 dark:text-gray-100">绑定微信</div>
+          <div class="text-base font-semibold text-[color:var(--text-primary)]">绑定微信</div>
         </div>
 
         <!-- 已绑定状态 -->
@@ -1070,7 +1086,7 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
         <div v-else class="px-4 pt-2 pb-6">
           <!-- 绑定提示 -->
           <div class="text-center my-6">
-            <p class="text-gray-700 dark:text-gray-300">
+            <p class="text-[color:var(--text-secondary)]">
               请在
               <span class="text-red-500 font-medium">{{
                 remainingTime > 0
@@ -1088,14 +1104,14 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
                 v-if="
                   wxLoginUrl && (agreedToUserAgreement || globalConfig.isAutoOpenAgreement !== '1')
                 "
-                class="w-full h-full select-none shadow-sm rounded-lg object-cover border border-gray-100 dark:border-gray-700"
+                class="w-full h-full select-none shadow-sm rounded-lg object-cover border border-[color:var(--glass-border)]"
                 :src="wxLoginUrl"
                 alt="微信绑定二维码"
               />
 
               <div
                 v-else
-                class="w-full h-full rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse"
+                class="w-full h-full rounded-lg bg-[color:var(--glass-bg-secondary)] animate-pulse"
               ></div>
 
               <div
@@ -1110,7 +1126,7 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
           </div>
 
           <!-- 提示文字 -->
-          <div class="text-center text-gray-700 dark:text-gray-300 text-base">
+          <div class="text-center text-[color:var(--text-secondary)] text-base">
             打开微信扫码绑定账户
           </div>
         </div>

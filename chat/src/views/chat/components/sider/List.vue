@@ -211,7 +211,7 @@ const isAppsHovered = ref(false)
           </p>
           <div class="relative group" v-if="isAppsHovered">
             <button
-              class="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-opacity opacity-70 hover:opacity-100 mr-3"
+              class="flex items-center justify-center text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] transition-opacity opacity-70 hover:opacity-100 mr-3"
               @click="showAllApps = !showAllApps"
             >
               <Down v-if="!showAllApps" theme="outline" size="16" />
@@ -226,10 +226,10 @@ const isAppsHovered = ref(false)
             v-for="app in showMoreMineApps ? mineApps : mineApps.slice(0, 4)"
             :key="app.appId"
             @click="addNewChatGroupFromApp(app.appId)"
-            class="relative flex items-center gap-3 my-1 px-3 py-1 break-all rounded-lg cursor-pointer hover:bg-white group dark:hover:bg-gray-800 font-medium text-sm 'text-gray-700', 'dark:bg-gray-900', 'dark:text-gray-400'"
+            class="relative group flex items-center gap-3 my-1 px-3 py-1 break-all rounded-xl cursor-pointer font-medium text-sm bg-transparent border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color] duration-200"
           >
             <div
-              class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden"
+              class="w-8 h-8 rounded-full bg-[color:var(--glass-bg-secondary)] flex items-center justify-center overflow-hidden border border-[color:var(--glass-border)]"
             >
               <img
                 v-if="app.coverImg"
@@ -258,7 +258,7 @@ const isAppsHovered = ref(false)
             </div>
           </div>
           <button
-            class="relative flex items-center gap-3 px-3 break-all rounded-lg cursor-pointer text-gray-900 dark:text-gray-400 text-xs font-bold"
+            class="relative flex items-center gap-3 px-3 break-all rounded-lg cursor-pointer text-[color:var(--text-secondary)] text-xs font-bold hover:text-[color:var(--text-primary)] transition-colors"
             v-if="mineApps.length > 4"
             @click="showMoreMineApps = !showMoreMineApps"
           >
@@ -267,7 +267,7 @@ const isAppsHovered = ref(false)
             <Up v-else theme="outline" size="20" />
           </button>
           <div
-            class="relative flex items-center gap-3 px-3 py-1 break-all rounded-lg cursor-pointer hover:bg-white group dark:hover:bg-gray-800 font-medium text-sm 'text-gray-700', 'dark:bg-gray-900', 'dark:text-gray-400'"
+            class="relative group flex items-center gap-3 px-3 py-1 break-all rounded-xl cursor-pointer font-medium text-sm bg-transparent border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color] duration-200"
             @click="
               () => {
                 useGlobalStore.updateShowAppListComponent(true)
@@ -280,7 +280,7 @@ const isAppsHovered = ref(false)
             <ApplicationTwo
               theme="outline"
               size="25"
-              class="ml-1 mr-1 text-sm my-1 text-gray-600"
+              class="ml-1 mr-1 text-sm my-1 text-[color:var(--text-tertiary)]"
             />
             {{ t('chat.appSquare') }}
           </div>
@@ -316,7 +316,7 @@ const isAppsHovered = ref(false)
           </p>
           <div class="relative group" v-if="historyList.length > 0 && isHistoryHovered">
             <button
-              class="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-opacity opacity-70 hover:opacity-100 mr-3"
+              class="flex items-center justify-center text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)] transition-opacity opacity-70 hover:opacity-100 mr-3"
               @click="handleClearConversations"
             >
               <Delete theme="outline" size="16" />

@@ -46,12 +46,10 @@ onMounted(() => {
 <template>
   <div class="overflow-y-auto custom-scrollbar p-1" :class="{ 'max-h-[70vh]': !isMobile }">
     <!-- 公告信息卡片 -->
-    <div
-      class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4 flex flex-col space-y-4"
-    >
+    <div class="p-4 glass rounded-2xl mb-4 flex flex-col space-y-4">
       <!-- 卡片标题 -->
       <div
-        class="text-base font-semibold text-gray-900 dark:text-gray-100 pb-2 border-b border-gray-200 dark:border-gray-700"
+        class="text-base font-semibold text-[color:var(--text-primary)] pb-2 border-b border-[color:var(--glass-border)]"
       >
         {{ globalConfig.noticeTitle || '平台公告' }}
       </div>
@@ -62,7 +60,7 @@ onMounted(() => {
           editorId="preview-only"
           :modelValue="noticeInfo"
           :theme="darkMode ? 'dark' : 'light'"
-          class="dark:bg-gray-700 w-full"
+          class="w-full bg-transparent"
         />
       </div>
     </div>

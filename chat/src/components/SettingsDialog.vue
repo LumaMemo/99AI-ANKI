@@ -2,17 +2,15 @@
   <transition name="modal-fade">
     <div
       v-if="props.visible"
-      class="fixed inset-0 z-[9000] flex items-center justify-center bg-gray-900 bg-opacity-50"
+      class="fixed inset-0 z-[9000] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm"
     >
       <div
-        class="bg-white dark:bg-gray-750 rounded-lg shadow-lg flex flex-col"
-        :class="
-          isMobile ? 'w-full h-full' : 'h-[80vh] rounded-lg shadow-lg w-full max-w-5xl p-4 mx-2'
-        "
+        class="glass-card aurora-border flex flex-col"
+        :class="isMobile ? 'w-full h-full' : 'h-[80vh] w-full max-w-5xl p-4 mx-2'"
       >
         <!-- 标题部分 -->
         <div class="flex justify-between items-center mb-2">
-          <span class="text-xl font-bold dark:text-white">设置</span>
+          <span class="text-xl font-bold text-[color:var(--text-primary)]">设置</span>
           <button @click="handleClose" class="btn-icon btn-md">
             <Close size="20" />
           </button>
@@ -20,33 +18,35 @@
         <!-- 主体部分 -->
         <div class="flex flex-grow">
           <!-- 左边标签栏 -->
-          <div class="w-1/5 bg-white dark:bg-gray-750 rounded-lg">
-            <div
-              v-for="(tab, index) in tabs"
-              :key="index"
-              @click="switchTab(index)"
-              class="relative flex items-center gap-3 px-3 py-3 my-1 break-all rounded-lg cursor-pointer group dark:hover:bg-gray-700 font-medium text-sm"
-              :class="{
-                'bg-gray-50 text-primary-600 dark:bg-gray-700 dark:text-primary-400':
-                  activeTab === index,
-                'text-gray-700 dark:text-gray-400': activeTab !== index,
-              }"
-            >
-              {{ tab.name }}
-            </div>
-
-            <!-- 添加退出登录按钮，位于标签栏最下方 -->
-            <div class="mt-auto">
+          <div class="w-1/5 pr-3">
+            <div class="glass rounded-2xl p-2 h-full flex flex-col">
               <div
-                @click="showLogoutConfirmation"
-                class="relative flex items-center gap-3 px-3 py-3 my-1 break-all rounded-lg cursor-pointer group font-medium text-sm text-red-500 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                v-for="(tab, index) in tabs"
+                :key="index"
+                @click="switchTab(index)"
+                class="relative flex items-center gap-3 px-3 py-3 my-1 break-all rounded-lg cursor-pointer group font-medium text-sm transition-colors"
+                :class="{
+                  'aurora-border neon-ring text-[color:var(--text-primary)]': activeTab === index,
+                  'text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-primary)] hover:text-[color:var(--text-primary)]':
+                    activeTab !== index,
+                }"
               >
-                退出登录
+                {{ tab.name }}
+              </div>
+
+              <!-- 添加退出登录按钮，位于标签栏最下方 -->
+              <div class="mt-auto">
+                <div
+                  @click="showLogoutConfirmation"
+                  class="relative flex items-center gap-3 px-3 py-3 my-1 break-all rounded-lg cursor-pointer group font-medium text-sm text-red-500 dark:text-red-400 hover:bg-[color:var(--glass-bg-primary)]"
+                >
+                  退出登录
+                </div>
               </div>
             </div>
           </div>
           <!-- 右边内容区域 -->
-          <div class="w-4/5 bg-white dark:bg-gray-750 rounded-lg ml-4">
+          <div class="w-4/5 glass rounded-2xl ml-3 overflow-hidden">
             <transition name="fade" mode="out-in">
               <div v-if="!isTabSwitching" key="loaded-content">
                 <keep-alive>
@@ -61,10 +61,10 @@
               <div v-else key="loading-placeholder" class="flex justify-center items-center h-full">
                 <div class="animate-pulse flex space-x-4">
                   <div class="flex-1 space-y-4 py-1">
-                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                    <div class="h-4 bg-[color:var(--glass-bg-secondary)] rounded w-3/4"></div>
                     <div class="space-y-2">
-                      <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                      <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
+                      <div class="h-4 bg-[color:var(--glass-bg-secondary)] rounded"></div>
+                      <div class="h-4 bg-[color:var(--glass-bg-secondary)] rounded w-5/6"></div>
                     </div>
                   </div>
                 </div>

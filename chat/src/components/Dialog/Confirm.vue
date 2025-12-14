@@ -10,38 +10,38 @@
     >
       <div v-if="visible" class="fixed inset-0 z-[9999]">
         <!-- 遮罩层 -->
-        <div class="absolute inset-0 bg-black/50" @click="handleCancel"></div>
+        <div
+          class="absolute inset-0 bg-[color:var(--overlay-mask)] backdrop-blur-sm"
+          @click="handleCancel"
+        ></div>
 
         <!-- 对话框 -->
         <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <div
-            class="w-[400px] bg-white dark:bg-[#24272e] rounded-lg shadow-lg overflow-hidden"
+            class="w-[92vw] max-w-[400px] glass-card aurora-border rounded-2xl overflow-hidden"
             @click.stop
           >
             <!-- 标题 -->
-            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-              <h3 class="text-lg font-medium text-neutral-900 dark:text-neutral-100">
+            <div class="p-4 border-b border-[color:var(--glass-border)]">
+              <h3 class="text-lg font-medium text-[color:var(--text-primary)]">
                 {{ options.title }}
               </h3>
             </div>
 
             <!-- 内容 -->
-            <div class="p-4 text-neutral-700 dark:text-neutral-300">
+            <div class="p-4 text-[color:var(--text-secondary)]">
               {{ options.content }}
             </div>
 
             <!-- 按钮 -->
             <div class="flex justify-end gap-2 px-4 py-3">
               <button
-                class="px-4 py-2 text-sm rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors"
+                class="px-4 py-2 text-sm rounded-md glass text-[color:var(--text-secondary)] hover:shadow-md"
                 @click="handleCancel"
               >
                 {{ options.negativeText }}
               </button>
-              <button
-                class="px-4 py-2 text-sm rounded-md bg-primary-500 hover:bg-primary-600 text-white transition-colors"
-                @click="handleConfirm"
-              >
+              <button class="px-4 py-2 text-sm rounded-md btn-pill-active" @click="handleConfirm">
                 {{ options.positiveText }}
               </button>
             </div>

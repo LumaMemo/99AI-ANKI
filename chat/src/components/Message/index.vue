@@ -17,7 +17,7 @@
           'bg-red-50 dark:bg-red-500/10': msg.type === 'error',
           'bg-yellow-50 dark:bg-yellow-500/10': msg.type === 'warning',
           'bg-blue-50 dark:bg-blue-500/10': msg.type === 'info',
-          'max-w-[70vw]': isMobile,
+          'max-w-[92vw]': isMobile,
           'max-w-[40vw]': !isMobile,
         }"
       >
@@ -46,7 +46,7 @@
             size="20"
             class="text-blue-500 dark:text-blue-400 flex-shrink-0"
           />
-          <span class="text-gray-900 dark:text-gray-100 truncate">{{ msg.content }}</span>
+          <span class="text-[color:var(--text-primary)] truncate">{{ msg.content }}</span>
         </div>
       </div>
     </TransitionGroup>

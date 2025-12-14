@@ -193,11 +193,11 @@ module.exports = {
           '&:hover:not(:disabled)': { borderColor: '#cdcdcd' },
           '&:focus:not(:disabled)': {
             borderColor: '#4f46e5',
-            boxShadow: '0 0 0 2px #4f46e522',
+            boxShadow: 'none',
           },
           '&.is-error': {
             borderColor: '#ef4444',
-            '&:focus': { boxShadow: '0 0 0 2px #ef444433' },
+            '&:focus': { boxShadow: 'none' },
           },
           '&:disabled': { opacity: '.6', cursor: 'not-allowed' },
           '.dark &': {
@@ -208,11 +208,11 @@ module.exports = {
             '&:hover:not(:disabled)': { borderColor: '#676767' },
             '&:focus:not(:disabled)': {
               borderColor: '#818cf8',
-              boxShadow: '0 0 0 2px #818cf822',
+              boxShadow: 'none',
             },
             '&.is-error': {
               borderColor: '#f87171',
-              '&:focus': { boxShadow: '0 0 0 2px #f8717133' },
+              '&:focus': { boxShadow: 'none' },
             },
           },
         },
@@ -686,27 +686,45 @@ module.exports = {
           width: '2rem' /* w-8 */,
           fontSize: '1rem' /* text-base */,
           fontWeight: '600' /* font-semibold */,
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)' /* shadow-sm */,
-          backgroundColor: '#4f46e5' /* primary-600 */,
-          color: '#ffffff' /* text-white */,
+          border: '0',
+          outline: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          overflow: 'hidden',
+          backgroundImage: 'var(--accent-gradient)',
+          backgroundSize: '140% 140%',
+          backgroundPosition: '50% 50%',
+          boxShadow: '0 0 0 1px var(--glass-border), var(--accent-glow)',
+          color: 'var(--btn-text-primary)',
           transition: 'all 0.2s',
           '&:hover:not(:disabled)': {
-            backgroundColor: '#4338ca' /* primary-700 */,
+            boxShadow: '0 0 0 1px var(--glass-border), var(--accent-glow), var(--glass-shadow)',
+          },
+          '&:focus-visible:not(:disabled)': {
+            boxShadow:
+              '0 0 0 1px var(--glass-border-highlight), var(--accent-glow), var(--glass-shadow)',
           },
           '&:disabled': {
-            backgroundColor: '#a5b4fc' /* primary-300 */,
+            backgroundImage: 'none',
+            backgroundColor: 'var(--glass-bg-secondary)',
+            color: 'var(--text-tertiary)',
+            boxShadow: '0 0 0 1px var(--glass-border)',
             opacity: '0.6',
             cursor: 'not-allowed',
           },
           '.dark &': {
-            backgroundColor: '#424242' /* gray-750 - 参考btn-pill暗色默认背景 */,
-            color: '#cdcdcd' /* gray-400 */,
+            backgroundImage: 'var(--accent-gradient)',
+            color: 'var(--btn-text-primary)',
             '&:hover:not(:disabled)': {
-              backgroundColor: '#424242' /* 保持背景不变 */,
-              color: '#ececec' /* gray-100 */,
+              boxShadow: '0 0 0 1px var(--glass-border), var(--accent-glow), var(--glass-shadow)',
+            },
+            '&:focus-visible:not(:disabled)': {
+              boxShadow:
+                '0 0 0 1px var(--glass-border-highlight), var(--accent-glow), var(--glass-shadow)',
             },
             '&:disabled': {
-              backgroundColor: '#2f2f2f' /* gray-800 */,
+              backgroundImage: 'none',
+              backgroundColor: 'var(--glass-bg-secondary)',
+              boxShadow: '0 0 0 1px var(--glass-border)',
             },
           },
         },
@@ -988,26 +1006,19 @@ module.exports = {
           cursor: 'pointer',
           userSelect: 'none',
           whiteSpace: 'nowrap',
-          border: '1px solid #cdcdcd' /* border-gray-100 */,
-          backgroundColor: '#ffffff',
-          color: '#6b7280' /* gray-500 */,
-          boxShadow: '0 1px 1px rgba(0, 0, 0, 0.01)',
+          border: '1px solid var(--glass-border)',
+          backgroundColor: 'var(--glass-bg-secondary)',
+          color: 'var(--text-secondary)',
+          boxShadow: 'none',
+          backdropFilter: 'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
 
           /* 悬停效果 */
           '&:hover:not(:disabled)': {
-            backgroundColor: '#f9f9f9' /* gray-50 */,
-            color: '#4b5563' /* gray-600 */,
-          },
-
-          /* 暗色模式 */
-          '.dark &': {
-            backgroundColor: '#2f2f2f' /* gray-750 */,
-            borderColor: '#2f2f2f' /* gray-750 */,
-            color: '#9b9b9b' /* gray-500 */,
-            '&:hover:not(:disabled)': {
-              backgroundColor: '#424242' /* gray-700 */,
-              color: '#cdcdcd' /* gray-300 */,
-            },
+            backgroundColor: 'var(--glass-bg-primary)',
+            borderColor: 'var(--glass-border-highlight)',
+            color: 'var(--text-primary)',
+            boxShadow: 'var(--glass-shadow)',
           },
 
           /* 禁用状态 */
@@ -1022,29 +1033,18 @@ module.exports = {
          * 激活状态的药丸按钮 (.btn-pill-active)
          */
         '.btn-pill-active': {
-          backgroundColor: '#e0e7ff' /* primary-100 */,
-          borderColor: '#e0e7ff',
-          color: '#4f46e5' /* primary-600 */,
-          border: '1px solid #e0e7ff',
-
-          // boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+          backgroundImage: 'var(--accent-gradient)',
+          backgroundSize: '140% 140%',
+          backgroundPosition: '50% 50%',
+          border: 0,
+          borderColor: 'transparent',
+          boxShadow: '0 0 0 1px var(--glass-border), var(--accent-glow)',
+          color: 'var(--btn-text-primary)',
 
           /* 悬停效果 */
           '&:hover:not(:disabled)': {
-            backgroundColor: '#e0e7ff' /* primary-100 */,
-            borderColor: '#e0e7ff',
-            color: '#4f46e5' /* primary-600 */,
-          },
-
-          '.dark &': {
-            backgroundColor: '#676767' /* gray-600 */,
-            borderColor: '#2f2f2f' /* gray-750 */,
-            color: '#ececec' /* gray-100 */,
-            '&:hover:not(:disabled)': {
-              backgroundColor: '#676767' /* 保持背景不变 */,
-              borderColor: '#2f2f2f' /* 保持边框不变 */,
-              color: '#ececec' /* 保持文字颜色不变 */,
-            },
+            boxShadow:
+              '0 0 0 1px var(--glass-border-highlight), var(--accent-glow), var(--glass-shadow)',
           },
         },
 

@@ -5,13 +5,18 @@
 
 html {
   height: 100%;
+  color-scheme: light dark;
 }
 
 body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #fff;
+  position: relative;
+  background-color: var(--bg-deep-space, #fff);
+  background-image: var(--bg-gradient-main, none);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   font-family:
     system-ui,
     -apple-system,
@@ -32,13 +37,41 @@ body {
   @apply text-gray-950 dark:text-gray-100 !important;
 }
 
-:root.dark body {
-  background-color: #212121;
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url('/noise.svg');
+  background-repeat: repeat;
+  opacity: var(--noise-opacity, 0);
+  mix-blend-mode: var(--noise-blend-mode, normal);
 }
 
 #app {
   height: 100%;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
+  animation: appFadeIn var(--motion-slow, 360ms) var(--motion-ease, ease) both;
+}
+
+@keyframes appFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app {
+    animation: none;
+  }
 }
 
 // div {

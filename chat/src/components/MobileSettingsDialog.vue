@@ -2,28 +2,30 @@
   <transition name="modal-fade">
     <div
       v-if="props.visible"
-      class="fixed inset-0 z-[9000] flex items-center justify-center bg-gray-900 bg-opacity-50"
+      class="fixed inset-0 z-[9000] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm"
     >
-      <div class="w-full h-full bg-white dark:bg-gray-750 flex flex-col overflow-hidden">
+      <div
+        class="w-full h-full glass-card aurora-border rounded-none flex flex-col overflow-hidden"
+      >
         <!-- 标题部分 -->
         <div
-          class="flex justify-between items-center mb-2 flex-shrink-0 px-4 pt-4 pb-2 border-b dark:border-gray-600"
+          class="flex justify-between items-center mb-2 flex-shrink-0 px-4 pt-4 pb-2 border-b border-[color:var(--glass-border)]"
         >
           <div class="flex items-center">
             <button
               v-if="currentView !== 'main'"
               @click="backToMainView"
-              class="mr-2 p-1 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+              class="mr-2 p-1 rounded-full text-[color:var(--text-tertiary)] hover:text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] focus:outline-none"
             >
               <ArrowLeft size="20" />
             </button>
-            <span class="text-xl font-semibold dark:text-white">
+            <span class="text-xl font-semibold text-[color:var(--text-primary)]">
               {{ currentView === 'main' ? '设置' : currentTabTitle }}
             </span>
           </div>
           <button
             @click="handleClose"
-            class="p-1 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+            class="p-1 rounded-full text-[color:var(--text-tertiary)] hover:text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] focus:outline-none"
           >
             <Close size="20" />
           </button>
@@ -36,19 +38,16 @@
             <div
               v-for="(tab, index) in tabs"
               :key="`mobile-tab-${index}`"
-              class="mb-1 border-b dark:border-gray-600 last:border-b-0"
+              class="mb-1 border-b border-[color:var(--glass-border)] last:border-b-0"
             >
               <div
                 @click="navigateToTab(index)"
-                class="flex justify-between items-center px-4 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
-                :class="{
-                  'text-gray-800 dark:text-gray-200': true,
-                }"
+                class="flex justify-between items-center px-4 py-4 cursor-pointer hover:bg-[color:var(--glass-bg-secondary)] rounded-lg transition-colors duration-150 text-[color:var(--text-primary)]"
               >
                 <span class="font-medium text-base">{{ tab.name }}</span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 text-gray-400"
+                  class="h-5 w-5 text-[color:var(--text-tertiary)]"
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >

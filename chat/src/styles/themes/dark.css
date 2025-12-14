@@ -1,3 +1,4 @@
+:root.dark,
 :root[data-theme='dark'] {
   /* ────────── Button Color ────────── */
   --btn-bg-primary: #818cf8;
@@ -39,4 +40,44 @@
   --tab-text-dark: #9ca3af;
   --tab-active-bg-dark: #424242;
   --tab-active-text-dark: #f3f4f6;
+
+  /* ────────── Aurora Edition (Stage 1 Tokens) ────────── */
+  /* Backgrounds */
+  --bg-deep-space: #050505;
+  --bg-gradient-main: radial-gradient(circle at 0% 0%, #1a103c 0%, #050505 40%, #050505 100%);
+
+  /* Glass Materials (Dark) */
+  --glass-bg-primary: rgba(30, 30, 40, 0.6);
+  --glass-bg-secondary: rgba(20, 20, 30, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-highlight: rgba(255, 255, 255, 0.15);
+  --glass-blur: blur(20px) saturate(180%);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
+  --glass-inner-glow: inset 0 0 20px rgba(255, 255, 255, 0.02);
+
+  /* Aurora Accents (Dark) */
+  --accent-cyan: #00f0ff;
+  --accent-cyan-rgb: 0, 240, 255;
+  --accent-fuchsia: #ff00ff;
+  --accent-violet: #7000ff;
+  --accent-gradient: linear-gradient(135deg, #00f0ff 0%, #818cf8 45%, #7000ff 100%);
+  --accent-glow: 0 0 18px rgba(129, 140, 248, 0.22);
+
+  /* Text (Dark) */
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.3);
+
+  /* Noise */
+  --noise-opacity: 0.06;
+  --noise-blend-mode: overlay;
+
+  /* Overlay (Stage 8) */
+  --overlay-mask: rgba(0, 0, 0, 0.46);
+
+  /* Motion (Stage 7) */
+  --motion-fast: 150ms;
+  --motion-normal: 220ms;
+  --motion-slow: 360ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }

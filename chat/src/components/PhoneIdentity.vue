@@ -129,10 +129,10 @@ interface Props {
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-50 py-6"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[color:var(--overlay-mask)] backdrop-blur-sm py-6"
   >
     <div
-      class="bg-white p-6 rounded-lg shadow-lg w-full max-h-[70vh] flex flex-col dark:bg-gray-900 dark:text-gray-400 relative"
+      class="glass-card aurora-border p-6 rounded-lg w-full max-h-[70vh] flex flex-col text-[color:var(--text-secondary)] relative"
       :class="{ 'max-w-[95vw]': isMobile, 'max-w-xl': !isMobile }"
     >
       <Close

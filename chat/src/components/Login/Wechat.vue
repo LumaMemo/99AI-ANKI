@@ -113,14 +113,14 @@ onBeforeUnmount(() => {
       <div class="relative w-[200px] h-[200px] mb-6 mt-auto">
         <img
           v-if="wxLoginUrl && (agreedToUserAgreement || globalConfig.isAutoOpenAgreement !== '1')"
-          class="w-full h-full select-none shadow-sm rounded-lg object-cover border border-gray-100 dark:border-gray-700"
+          class="w-full h-full select-none rounded-xl object-cover glass border border-[color:var(--glass-border)]"
           :src="wxLoginUrl"
           alt="微信登录二维码"
         />
 
         <div
           v-else
-          class="w-full h-full rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse"
+          class="w-full h-full rounded-xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] animate-pulse"
         ></div>
 
         <div
@@ -128,24 +128,24 @@ onBeforeUnmount(() => {
           class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2"
         >
           <div
-            class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 dark:border-primary-400"
+            class="animate-spin rounded-full h-10 w-10 border-b-2 border-[color:var(--accent-cyan)]"
           ></div>
         </div>
       </div>
 
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">请使用微信扫描二维码登录</p>
+      <p class="text-sm text-[color:var(--text-secondary)] mb-2">请使用微信扫描二维码登录</p>
 
       <div v-if="globalConfig.isAutoOpenAgreement === '1'" class="flex items-center mt-2">
         <input
           v-model="agreedToUserAgreement"
           type="checkbox"
-          class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-700 dark:bg-gray-800"
+          class="h-4 w-4 rounded border-[color:var(--glass-border)] bg-transparent accent-[color:var(--accent-cyan)]"
         />
-        <p class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+        <p class="ml-2 text-sm text-[color:var(--text-secondary)]">
           扫码登录即代表同意
           <a
             href="#"
-            class="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+            class="font-medium text-[color:var(--accent-cyan)] hover:text-[color:var(--accent-fuchsia)]"
             @click="handleClick"
             >《用户协议及隐私协议》</a
           >

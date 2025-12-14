@@ -268,11 +268,16 @@ function openSettings(tab?: number) {
                 alt="网站图标"
                 class="w-6 h-6 rounded-lg object-cover"
               />
-              <div v-else class="w-6 h-6 rounded-lg bg-gray-200 flex items-center justify-center">
-                <span class="text-xs">{{ currentExternalLink?.name?.charAt(0) || '?' }}</span>
+              <div
+                v-else
+                class="w-6 h-6 rounded-lg bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center"
+              >
+                <span class="text-xs text-[color:var(--text-secondary)]">
+                  {{ currentExternalLink?.name?.charAt(0) || '?' }}
+                </span>
               </div>
               <span
-                class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate whitespace-nowrap overflow-hidden max-w-[30vw]"
+                class="text-sm font-medium text-[color:var(--text-primary)] truncate whitespace-nowrap overflow-hidden max-w-[50vw] md:max-w-[30vw]"
               >
                 {{ currentExternalLink?.name || '外部链接' }}
               </span>
@@ -283,7 +288,7 @@ function openSettings(tab?: number) {
           <div v-else-if="notSwitchModel" class="flex-1 flex items-center">
             <div class="menu menu-md relative">
               <button class="menu-trigger" aria-label="当前对话" disabled>
-                <span class="truncate whitespace-nowrap overflow-hidden max-w-[30vw]">
+                <span class="truncate whitespace-nowrap overflow-hidden max-w-[60vw] md:max-w-[30vw]">
                   {{ activeGroupInfo?.title || '新对话' }}
                 </span>
               </button>
@@ -300,7 +305,7 @@ function openSettings(tab?: number) {
                   @mouseleave="isHovering = false"
                   aria-label="选择模型"
                 >
-                  <span class="truncate whitespace-nowrap overflow-hidden max-w-[50vw]">
+                  <span class="truncate whitespace-nowrap overflow-hidden max-w-[70vw] md:max-w-[50vw]">
                     {{ configObj?.modelInfo?.modelName || '新对话' }}
                   </span>
                   <Right
@@ -355,7 +360,7 @@ function openSettings(tab?: number) {
                       <CheckOne
                         theme="filled"
                         size="16"
-                        class="text-gray-500 dark:text-gray-400"
+                        class="text-[color:var(--text-tertiary)]"
                         aria-hidden="true"
                       />
                     </div>
