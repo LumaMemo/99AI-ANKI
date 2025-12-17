@@ -61,7 +61,15 @@ function toggleSelection(plugin: any) {
     <div
       v-for="plugin in pluginList"
       :key="plugin.parameters"
-      class="select-none relative h-26 bg-white shadow flex flex-col items-start gap-3 px-3 py-1 break-all rounded-lg cursor-pointer group font-medium dark:bg-gray-800"
+      class="select-none relative h-26 flex flex-col items-start gap-3 px-3 py-1 break-all rounded-xl cursor-pointer group font-medium bg-transparent border border-transparent transition-[background,border-color] duration-200"
+      :class="
+        usingPlugin?.parameters === plugin.parameters
+          ? ['aurora-border', 'neon-ring', 'bg-[color:var(--glass-bg-primary)]']
+          : [
+              'hover:bg-[color:var(--glass-bg-secondary)]',
+              'hover:border-[color:var(--glass-border)]',
+            ]
+      "
       role="region"
       :aria-label="`${plugin.pluginName}插件卡片`"
     >
@@ -69,7 +77,7 @@ function toggleSelection(plugin: any) {
         <div class="flex items-center space-x-2 flex-1 min-w-0">
           <!-- 头像部分 -->
           <div
-            class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-500 flex items-center justify-center overflow-hidden shadow-sm border border-gray-300 flex-shrink-0"
+            class="w-8 h-8 rounded-full bg-[color:var(--glass-bg-secondary)] flex items-center justify-center overflow-hidden shadow-sm border border-[color:var(--glass-border)] flex-shrink-0"
           >
             <img
               v-if="plugin.pluginImg"
@@ -85,7 +93,7 @@ function toggleSelection(plugin: any) {
 
           <!-- 名称部分 -->
           <span
-            class="line-clamp-1 overflow-hidden text-ellipsis block whitespace-nowrap font-medium text-base text-gray-700 dark:text-gray-100 flex-1 min-w-0"
+            class="line-clamp-1 overflow-hidden text-ellipsis block whitespace-nowrap font-medium text-base text-[color:var(--text-primary)] flex-1 min-w-0"
           >
             {{ plugin.pluginName }}
           </span>
@@ -127,7 +135,7 @@ function toggleSelection(plugin: any) {
       </div>
 
       <div>
-        <span class="min-h-[2rem] text-xs line-clamp-2 text-gray-600 dark:text-gray-400 mb-2">
+        <span class="min-h-[2rem] text-xs line-clamp-2 text-[color:var(--text-secondary)] mb-2">
           {{ plugin.description }}
         </span>
       </div>

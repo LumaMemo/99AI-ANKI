@@ -1285,7 +1285,7 @@ provide('tryParseJson', tryParseJson)
   <div class="flex h-full w-full">
     <!-- Main container flex -->
     <div
-      class="relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform"
+      class="glass-card relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform"
     >
       <!-- Background Image Layer -->
       <div
@@ -1316,7 +1316,7 @@ provide('tryParseJson', tryParseJson)
       </template>
       <template v-else-if="useGlobalStore.showAppListComponent">
         <AppList
-          class="relative z-10 flex-1 overflow-hidden bg-white dark:bg-gray-900"
+          class="relative z-10 flex-1 overflow-hidden"
           @run-app="handleRunAppFromList"
           @show-member-dialog="handleShowMemberDialogFromList"
           @run-app-with-data="handleRunAppWithData"

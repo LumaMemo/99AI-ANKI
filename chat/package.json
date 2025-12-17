@@ -16,6 +16,7 @@
     "start:f": "vite",
     "all": "npm-run-all --parallel start:h start:f",
     "dev": "vite",
+    "build-only": "vite build --mode=production",
     "build-check": "run-p type-check build-only",
     "preview": "vite preview",
     "build": "pnpm format && vite build --mode=production",
@@ -107,5 +108,6 @@
     "vite": "^4.5.14",
     "vue-tsc": "^1.8.27"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@10.22.0+sha512.bf049efe995b28f527fd2b41ae0474ce29186f7edcb3bf545087bd61fbbebb2bf75362d1307fda09c2d288e1e499787ac12d4fcb617a974718a6051f2eee741c"
 }

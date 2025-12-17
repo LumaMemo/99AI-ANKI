@@ -448,12 +448,10 @@ watch(
     <!-- 主视图 -->
     <div v-if="activeView === 'main'">
       <!-- 套餐列表卡片 -->
-      <div
-        class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-4 flex flex-col space-y-4"
-      >
+      <div class="p-4 glass rounded-2xl mb-4 flex flex-col space-y-4">
         <!-- 卡片标题 -->
         <div
-          class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700"
+          class="text-base font-semibold text-[color:var(--text-primary)] mb-2 pb-2 border-b border-[color:var(--glass-border)]"
         >
           套餐列表
         </div>
@@ -465,45 +463,47 @@ watch(
             :key="index"
             :class="[
               item.name == selectName
-                ? 'ring-2 ring-primary-500 shadow-md'
-                : 'ring-1 ring-gray-200 dark:ring-gray-700',
-              'rounded-lg p-6 hover:shadow-md bg-white dark:bg-gray-750',
+                ? 'aurora-border neon-ring shadow-md'
+                : 'border border-[color:var(--glass-border)]',
+              'glass rounded-2xl p-6 hover:shadow-md',
             ]"
             @click="handleSelect(item)"
           >
             <div class="relative">
-              <b class="text-lg font-semibold leading-8 dark:text-white">{{ item.name }}</b>
+              <b class="text-lg font-semibold leading-8 text-[color:var(--text-primary)]">{{
+                item.name
+              }}</b>
             </div>
 
             <div v-if="!isHideModel3Point" class="flex justify-between items-end mt-4">
-              <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{
+              <span class="text-sm font-medium text-[color:var(--text-tertiary)]">{{
                 model3Name
               }}</span>
-              <span class="font-bold dark:text-white">
+              <span class="font-bold text-[color:var(--text-primary)]">
                 {{ item.model3Count > 99999 ? '无限额度' : item.model3Count }}
               </span>
             </div>
 
             <div v-if="!isHideModel4Point" class="flex justify-between items-end mt-2">
-              <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{
+              <span class="text-sm font-medium text-[color:var(--text-tertiary)]">{{
                 model4Name
               }}</span>
-              <span class="font-bold dark:text-white">
+              <span class="font-bold text-[color:var(--text-primary)]">
                 {{ item.model4Count > 99999 ? '无限额度' : item.model4Count }}
               </span>
             </div>
 
             <div v-if="!isHideDrawMjPoint" class="flex justify-between items-end mt-2">
-              <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{
+              <span class="text-sm font-medium text-[color:var(--text-tertiary)]">{{
                 drawMjName
               }}</span>
-              <span class="font-bold dark:text-white">
+              <span class="font-bold text-[color:var(--text-primary)]">
                 {{ item.drawMjCount > 99999 ? '无限额度' : item.drawMjCount }}
               </span>
             </div>
 
             <div class="mt-4 flex items-baseline gap-x-1">
-              <span class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{{
+              <span class="text-3xl font-bold tracking-tight text-[color:var(--text-primary)]">{{
                 `￥${item.price}`
               }}</span>
             </div>
@@ -516,7 +516,7 @@ watch(
 
             <ul
               v-if="item.des"
-              class="mt-4 space-y-2 text-sm leading-6 text-gray-600 dark:text-gray-400"
+              class="mt-4 space-y-2 text-sm leading-6 text-[color:var(--text-secondary)]"
             >
               <li
                 v-for="(line, index) in splitDescription(item.des)"
@@ -544,34 +544,30 @@ watch(
       <!-- 签到和余额并排显示区域 -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <!-- 签到日历卡片 - 左侧 -->
-        <div
-          class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col space-y-4 h-full"
-        >
+        <div class="p-4 glass rounded-2xl flex flex-col space-y-4 h-full">
           <!-- 卡片标题 -->
           <div
-            class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700"
+            class="text-base font-semibold text-[color:var(--text-primary)] mb-2 pb-2 border-b border-[color:var(--glass-border)]"
           >
             签到奖励
           </div>
 
           <!-- 签到信息 -->
-          <div
-            class="bg-gray-50 mb-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-700"
-          >
-            <span class="dark:text-gray-300">签到赠送：</span>
+          <div class="glass mb-4 p-3 rounded-xl">
+            <span class="text-[color:var(--text-secondary)]">签到赠送：</span>
             <span v-if="signInModel3Count > 0 && !isHideModel3Point"
               ><b class="mx-2 text-primary-500">{{ signInModel3Count }}</b
-              ><span class="dark:text-gray-300">{{ model3Name }}</span></span
+              ><span class="text-[color:var(--text-secondary)]">{{ model3Name }}</span></span
             >
             <span v-if="signInModel4Count > 0 && !isHideModel4Point"
               ><b class="mx-2 text-primary-500">{{ signInModel4Count }}</b
-              ><span class="dark:text-gray-300">{{ model4Name }}</span></span
+              ><span class="text-[color:var(--text-secondary)]">{{ model4Name }}</span></span
             >
             <span v-if="signInMjDrawToken > 0 && !isHideDrawMjPoint"
               ><b class="mx-2 text-primary-500">{{ signInMjDrawToken }}</b
-              ><span class="dark:text-gray-300">{{ drawMjName }}</span></span
+              ><span class="text-[color:var(--text-secondary)]">{{ drawMjName }}</span></span
             >
-            <span class="dark:text-gray-300"
+            <span class="text-[color:var(--text-secondary)]"
               >（已连续签到<b class="text-red-500 mx-1">{{ consecutiveDays }}</b
               >天）</span
             >
@@ -580,7 +576,7 @@ watch(
           <!-- 签到日历 -->
           <div class="flex-grow">
             <div
-              class="grid grid-cols-7 text-center text-xs leading-6 text-gray-500 dark:text-gray-400"
+              class="grid grid-cols-7 text-center text-xs leading-6 text-[color:var(--text-tertiary)]"
             >
               <div>日</div>
               <div>一</div>
@@ -604,8 +600,8 @@ watch(
                       ? 'bg-primary-600 text-white'
                       : day.isSigned
                         ? 'text-primary-600 dark:text-primary-400'
-                        : 'text-gray-900 dark:text-gray-100',
-                    'hover:bg-gray-200 dark:hover:bg-gray-700 mx-auto flex h-8 w-8 items-center justify-center rounded-full',
+                        : 'text-[color:var(--text-primary)]',
+                    'hover:bg-[color:var(--glass-bg-secondary)] mx-auto flex h-8 w-8 items-center justify-center rounded-full',
                   ]"
                 >
                   <time :datetime="day.signInDate">{{ day.day }}</time>
@@ -615,7 +611,7 @@ watch(
           </div>
 
           <!-- 签到按钮 -->
-          <div class="mt-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div class="mt-4 pt-2 border-t border-[color:var(--glass-border)]">
             <button
               @click="handleSignIn"
               :disabled="hasSignedInToday || signInLoading"
@@ -629,12 +625,10 @@ watch(
         </div>
 
         <!-- 钱包余额卡片 - 右侧 -->
-        <div
-          class="p-4 bg-white dark:bg-gray-700 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col space-y-4 h-full"
-        >
+        <div class="p-4 glass rounded-2xl flex flex-col space-y-4 h-full">
           <!-- 卡片标题 -->
           <div
-            class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700"
+            class="text-base font-semibold text-[color:var(--text-primary)] mb-2 pb-2 border-b border-[color:var(--glass-border)]"
           >
             额度信息
           </div>
@@ -642,12 +636,9 @@ watch(
           <!-- 余额信息 -->
           <div class="space-y-3">
             <!-- 基础模型积分 -->
-            <div
-              v-if="!isHideModel3Point"
-              class="flex items-center p-2 border border-gray-200 dark:border-gray-700 rounded-lg"
-            >
-              <div class="text-gray-500 dark:text-gray-400 w-28">{{ model3Name }}</div>
-              <div class="text-lg font-bold text-gray-900 dark:text-gray-100">
+            <div v-if="!isHideModel3Point" class="flex items-center p-2 glass rounded-xl">
+              <div class="text-[color:var(--text-tertiary)] w-28">{{ model3Name }}</div>
+              <div class="text-lg font-bold text-[color:var(--text-primary)]">
                 {{
                   userBalance.sumModel3Count > 999999
                     ? '无限额度'
@@ -655,19 +646,16 @@ watch(
                 }}
                 <span
                   v-if="userBalance.sumModel3Count <= 999999"
-                  class="text-sm text-gray-500 dark:text-gray-400 ml-1"
+                  class="text-sm text-[color:var(--text-tertiary)] ml-1"
                   >{{ t('usercenter.points') }}</span
                 >
               </div>
             </div>
 
             <!-- 高级模型积分 -->
-            <div
-              v-if="!isHideModel4Point"
-              class="flex items-center p-2 border border-gray-200 dark:border-gray-700 rounded-lg"
-            >
-              <div class="text-gray-500 dark:text-gray-400 w-28">{{ model4Name }}</div>
-              <div class="text-lg font-bold text-gray-900 dark:text-gray-100">
+            <div v-if="!isHideModel4Point" class="flex items-center p-2 glass rounded-xl">
+              <div class="text-[color:var(--text-tertiary)] w-28">{{ model4Name }}</div>
+              <div class="text-lg font-bold text-[color:var(--text-primary)]">
                 {{
                   userBalance.sumModel4Count > 99999
                     ? '无限额度'
@@ -675,19 +663,16 @@ watch(
                 }}
                 <span
                   v-if="userBalance.sumModel4Count <= 99999"
-                  class="text-sm text-gray-500 dark:text-gray-400 ml-1"
+                  class="text-sm text-[color:var(--text-tertiary)] ml-1"
                   >{{ t('usercenter.points') }}</span
                 >
               </div>
             </div>
 
             <!-- 绘画积分 -->
-            <div
-              v-if="!isHideDrawMjPoint"
-              class="flex items-center p-2 border border-gray-200 dark:border-gray-700 rounded-lg"
-            >
-              <div class="text-gray-500 dark:text-gray-400 w-28">{{ drawMjName }}</div>
-              <div class="text-lg font-bold text-gray-900 dark:text-gray-100">
+            <div v-if="!isHideDrawMjPoint" class="flex items-center p-2 glass rounded-xl">
+              <div class="text-[color:var(--text-tertiary)] w-28">{{ drawMjName }}</div>
+              <div class="text-lg font-bold text-[color:var(--text-primary)]">
                 {{
                   userBalance.sumDrawMjCount > 99999
                     ? '无限额度'
@@ -695,20 +680,18 @@ watch(
                 }}
                 <span
                   v-if="userBalance.sumDrawMjCount <= 99999"
-                  class="text-sm text-gray-500 dark:text-gray-400 ml-1"
+                  class="text-sm text-[color:var(--text-tertiary)] ml-1"
                   >{{ t('usercenter.points') }}</span
                 >
               </div>
             </div>
 
             <!-- 会员到期时间 -->
-            <div
-              class="flex items-center p-2 border border-gray-200 dark:border-gray-700 rounded-lg"
-            >
-              <div class="text-gray-500 dark:text-gray-400 w-28">会员状态</div>
+            <div class="flex items-center p-2 glass rounded-xl">
+              <div class="text-[color:var(--text-tertiary)] w-28">会员状态</div>
               <div
                 class="text-lg font-bold"
-                :class="isMember ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'"
+                :class="isMember ? 'text-red-500' : 'text-[color:var(--text-tertiary)]'"
               >
                 {{ userBalance.expirationTime ? `${userBalance.expirationTime} 到期` : '非会员' }}
               </div>
@@ -718,9 +701,9 @@ watch(
           <!-- 卡密兑换部分移至此处 -->
           <div
             v-if="showCrami"
-            class="flex-grow mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+            class="flex-grow mt-4 pt-4 border-t border-[color:var(--glass-border)]"
           >
-            <div class="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">卡密兑换</div>
+            <div class="text-base font-medium text-[color:var(--text-primary)] mb-3">卡密兑换</div>
             <div class="flex items-center space-x-2">
               <input
                 v-model="code"

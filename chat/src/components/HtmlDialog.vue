@@ -204,16 +204,19 @@ watch(
       v-if="props.visible"
       class="fixed inset-0 z-50 flex items-center justify-center html-modal-container"
     >
-      <div class="fixed inset-0 bg-black bg-opacity-50" @click.stop="handleClose"></div>
+      <div
+        class="fixed inset-0 bg-[color:var(--overlay-mask)] backdrop-blur-sm"
+        @click.stop="handleClose"
+      ></div>
 
       <Close
-        class="absolute top-3 right-3 cursor-pointer z-30"
+        class="absolute top-3 right-3 cursor-pointer z-30 text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
         size="18"
         @click.stop.prevent="handleClose"
       />
 
       <div
-        class="relative bg-white dark:bg-gray-900 w-full h-full p-4 z-10"
+        class="relative glass-card aurora-border rounded-none w-full h-full p-4 z-10 overflow-hidden"
         :class="[isMobile ? 'flex-col' : 'flex']"
         @click.stop
       >
@@ -222,7 +225,7 @@ watch(
           <iframe
             ref="htmlPreviewRef"
             :srcDoc="localEditableText"
-            class="box-border w-full h-full border rounded-md"
+            class="box-border w-full h-full border border-[color:var(--glass-border)] rounded-md"
             frameborder="0"
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
           ></iframe>
@@ -237,28 +240,20 @@ watch(
           <!-- CodeMirror 编辑器容器 -->
           <div
             ref="editorContainerRef"
-            class="w-full h-full border rounded-md overflow-hidden dark:border-gray-700 code-editor-container"
+            class="w-full h-full border border-[color:var(--glass-border)] rounded-md overflow-hidden code-editor-container"
           ></div>
 
           <div class="mt-2 flex justify-end">
             <button
               @click="handleClose"
-              class="px-4 py-2 shadow-sm ring-1 ring-inset bg-white ring-gray-300 hover:bg-gray-50 text-gray-900 rounded-md mr-4 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:ring-gray-700 dark:hover:ring-gray-600"
+              class="px-4 py-2 rounded-md mr-4 glass text-[color:var(--text-secondary)] hover:shadow-md"
             >
               取消
             </button>
-            <button
-              @click="handleCopy"
-              class="px-4 py-2 shadow-sm bg-primary-600 hover:bg-primary-500 text-white dark rounded-md mr-4"
-            >
+            <button @click="handleCopy" class="px-4 py-2 rounded-md mr-4 btn-pill-active">
               复制
             </button>
-            <button
-              @click="handleShare"
-              class="px-4 py-2 shadow-sm bg-primary-600 hover:bg-primary-500 text-white dark rounded-md"
-            >
-              分享
-            </button>
+            <button @click="handleShare" class="px-4 py-2 rounded-md btn-pill-active">分享</button>
           </div>
         </div>
 
@@ -267,7 +262,7 @@ watch(
           <iframe
             ref="htmlPreviewRef"
             :srcDoc="localEditableText"
-            class="box-border w-full h-full border rounded-md"
+            class="box-border w-full h-full border border-[color:var(--glass-border)] rounded-md"
             frameborder="0"
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
           ></iframe>

@@ -63,10 +63,10 @@ if (props.visible) {
 <template>
   <div
     v-if="props.visible"
-    class="fixed inset-0 z-[10001] px-2 flex items-center justify-center bg-black bg-opacity-50"
+    class="fixed inset-0 z-[10001] px-2 flex items-center justify-center bg-[color:var(--overlay-mask)] backdrop-blur-sm"
   >
     <div
-      class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-lg w-full max-w-3xl max-h-[80vh] flex flex-col relative"
+      class="glass-card aurora-border p-4 rounded-lg w-[92vw] max-w-3xl max-h-[80vh] flex flex-col relative"
     >
       <!-- 显示用户协议标题 -->
       <div class="flex justify-between items-center mb-3">

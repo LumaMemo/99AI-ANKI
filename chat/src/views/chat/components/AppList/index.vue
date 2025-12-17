@@ -239,7 +239,7 @@ onMounted(() => {
 <template>
   <!-- 应用列表 -->
   <div
-    class="bg-white dark:bg-gray-900 flex flex-col h-full w-full"
+    class="bg-transparent flex flex-col h-full w-full"
     :class="[isMobile ? 'px-2 py-2' : 'pb-3']"
   >
     <div
@@ -285,7 +285,7 @@ onMounted(() => {
             {{ t('app.searchAppNameQuickFind') }}
           </label>
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search theme="outline" size="18" class="text-gray-400" />
+            <Search theme="outline" size="18" class="text-[color:var(--text-tertiary)]" />
           </div>
           <input
             id="app-search-field"
@@ -340,7 +340,7 @@ onMounted(() => {
           v-for="item in list"
           :key="item.id"
           @click="handleRunApp(item)"
-          class="group cursor-pointer flex items-center gap-3 rounded-xl px-3 py-3 transition-colors duration-200 bg-gray-50 dark:bg-gray-750 ring-1 ring-gray-100 dark:ring-gray-750 hover:shadow-md"
+          class="group cursor-pointer flex items-center gap-3 rounded-xl px-3 py-3 transition-colors duration-200 glass hover:shadow-md"
           style="min-height: 7rem"
         >
           <div v-if="item.coverImg" class="flex-shrink-0">
@@ -359,7 +359,7 @@ onMounted(() => {
           </div>
           <div class="flex-grow flex flex-col overflow-hidden">
             <div
-              class="flex items-center justify-between font-semibold text-sm text-gray-800 dark:text-gray-200 mb-0.5"
+              class="flex items-center justify-between font-semibold text-sm text-[color:var(--text-primary)] mb-0.5"
             >
               <span
                 class="line-clamp-1 overflow-hidden text-ellipsis block flex-grow mr-2 whitespace-nowrap"
@@ -384,7 +384,7 @@ onMounted(() => {
               <span
                 v-for="(catName, index) in item.catName.split(',')"
                 :key="index"
-                class="text-xs px-2 py-0.5 border rounded-md cursor-pointer flex items-center whitespace-nowrap transition-colors duration-150 bg-white border-gray-100 text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:bg-gray-700 dark:border-gray-750 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-gray-300"
+                class="text-xs px-2 py-0.5 border rounded-md cursor-pointer flex items-center whitespace-nowrap transition-colors duration-150 bg-[color:var(--glass-bg-secondary)] border-[color:var(--glass-border)] text-[color:var(--text-tertiary)] hover:bg-[color:var(--glass-bg-primary)] hover:border-[color:var(--glass-border-highlight)]"
                 @click.stop="handleClickCategoryTag(catName.trim())"
               >
                 <span>{{ catName.trim() }}</span>
@@ -396,7 +396,7 @@ onMounted(() => {
               </span>
             </div>
 
-            <span class="text-xs line-clamp-2 text-gray-500/90 dark:text-gray-400/80">
+            <span class="text-xs line-clamp-2 text-[color:var(--text-secondary)]">
               {{ item.des }}
             </span>
           </div>

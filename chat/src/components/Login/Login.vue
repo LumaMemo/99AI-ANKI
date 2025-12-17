@@ -48,15 +48,15 @@ function changeLoginType(type: string) {
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-50"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[color:var(--overlay-mask)] backdrop-blur-sm"
   >
     <div
-      class="bg-white py-12 rounded-xl shadow-lg w-full h-[32rem] flex flex-col dark:bg-gray-900 dark:text-gray-300 relative"
+      class="glass-card aurora-border motion-fade-up py-12 rounded-2xl w-full h-[32rem] flex flex-col relative text-[color:var(--text-primary)]"
       :class="{ 'w-[98vw] px-4': isMobile, 'max-w-xl px-8': !isMobile }"
     >
       <button
         @click="authStore.setLoginDialog(false)"
-        class="btn-icon btn-sm absolute top-4 right-4 z-30 text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+        class="btn-icon btn-sm absolute top-4 right-4 z-30 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]"
       >
         <Close theme="outline" size="18" />
       </button>
@@ -67,7 +67,9 @@ function changeLoginType(type: string) {
           class="w-full flex justify-center mb-10"
           :class="{ 'px-5': isMobile, 'px-10': !isMobile }"
         >
-          <div class="tab-group tab-group-default dark:bg-gray-800">
+          <div
+            class="tab-group tab-group-default bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)]"
+          >
             <button
               v-if="wechatRegisterStatus"
               @click="changeLoginType('wechat')"

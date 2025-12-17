@@ -206,7 +206,7 @@ async function loginAction() {
         <div class="flex flex-col gap-2">
           <label
             for="username"
-            class="block text-sm/6 font-medium text-gray-900 dark:text-gray-300"
+            class="block text-sm/6 font-medium text-[color:var(--text-secondary)]"
             >{{ loginTypeText }}</label
           >
           <div>
@@ -215,7 +215,7 @@ async function loginAction() {
               type="text"
               v-model="passwordForm.username"
               :placeholder="loginEnterType"
-              class="input input-lg w-full"
+              class="input input-lg w-full bg-transparent border-[color:var(--glass-border)] text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)] focus:border-[color:var(--glass-border-highlight)]"
             />
           </div>
         </div>
@@ -225,7 +225,7 @@ async function loginAction() {
           <div class="flex flex-col gap-2">
             <label
               for="password"
-              class="block text-sm/6 font-medium text-gray-900 dark:text-gray-300"
+              class="block text-sm/6 font-medium text-[color:var(--text-secondary)]"
               >{{ t('login.password') }}</label
             >
             <div>
@@ -234,7 +234,7 @@ async function loginAction() {
                 type="password"
                 v-model="passwordForm.password"
                 :placeholder="t('login.enterYourPassword')"
-                class="input input-lg w-full"
+                class="input input-lg w-full bg-transparent border-[color:var(--glass-border)] text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)] focus:border-[color:var(--glass-border-highlight)]"
               />
             </div>
           </div>
@@ -247,13 +247,13 @@ async function loginAction() {
               id="agreement-password"
               v-model="agreedToUserAgreement"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-700 dark:bg-gray-800"
+              class="h-4 w-4 rounded border-[color:var(--glass-border)] bg-transparent accent-[color:var(--accent-cyan)]"
             />
-            <p class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+            <p class="ml-2 text-sm text-[color:var(--text-secondary)]">
               登录即代表同意
               <a
                 href="#"
-                class="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+                class="font-medium text-[color:var(--accent-cyan)] hover:text-[color:var(--accent-fuchsia)]"
                 @click="handleClick"
                 >《{{ globalConfig.agreementTitle }}》</a
               >
@@ -266,7 +266,7 @@ async function loginAction() {
       <div>
         <button
           type="submit"
-          class="btn btn-primary btn-lg w-full rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn btn-lg w-full rounded-full border border-[color:var(--glass-border)] bg-[image:var(--accent-gradient)] bg-[size:140%_140%] bg-[position:50%_50%] text-[color:var(--btn-text-primary)] shadow-[var(--accent-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="loading || !passwordForm.username.trim() || !passwordForm.password"
         >
           <span v-if="loading" class="inline-block mr-2">
@@ -289,7 +289,7 @@ async function loginAction() {
         <div class="flex flex-col gap-2">
           <label
             for="contact"
-            class="block text-sm/6 font-medium text-gray-900 dark:text-gray-300"
+            class="block text-sm/6 font-medium text-[color:var(--text-secondary)]"
             >{{ loginTypeText }}</label
           >
           <div>
@@ -298,7 +298,7 @@ async function loginAction() {
               type="text"
               v-model="captchaForm.contact"
               :placeholder="t('login.enterContact') + loginTypeText"
-              class="input input-lg w-full"
+              class="input input-lg w-full bg-transparent border-[color:var(--glass-border)] text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)] focus:border-[color:var(--glass-border-highlight)]"
             />
           </div>
         </div>
@@ -308,21 +308,21 @@ async function loginAction() {
           <div class="flex flex-col gap-2">
             <label
               for="captchaId"
-              class="block text-sm/6 font-medium text-gray-900 dark:text-gray-300"
+              class="block text-sm/6 font-medium text-[color:var(--text-secondary)]"
               >验证码</label
             >
             <div class="relative px-1">
-              <div class="flex relative">
+              <div class="relative">
                 <input
                   id="captchaId"
                   type="text"
                   v-model="captchaForm.captchaId"
                   :placeholder="t('login.enterCode')"
-                  class="input input-lg w-full pr-32"
+                  class="input input-lg w-full pr-32 bg-transparent border-[color:var(--glass-border)] text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)] focus:border-[color:var(--glass-border-highlight)]"
                 />
                 <button
                   type="button"
-                  class="btn-captcha px-4"
+                  class="btn-pill footer-pill absolute right-2 top-1/2 z-10 -translate-y-1/2 whitespace-nowrap px-4 py-3 leading-6"
                   :disabled="loading || lastSendPhoneCodeTime > 0 || !captchaForm.contact.trim()"
                   @click="isShow = true"
                 >
@@ -357,13 +357,13 @@ async function loginAction() {
               id="agreement-captcha"
               v-model="agreedToUserAgreement"
               type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-700 dark:bg-gray-800"
+              class="h-4 w-4 rounded border-[color:var(--glass-border)] bg-transparent accent-[color:var(--accent-cyan)]"
             />
-            <p class="ml-2 text-sm text-gray-600 dark:text-gray-400">
+            <p class="ml-2 text-sm text-[color:var(--text-secondary)]">
               登录即代表同意
               <a
                 href="#"
-                class="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+                class="font-medium text-[color:var(--accent-cyan)] hover:text-[color:var(--accent-fuchsia)]"
                 @click="handleClick"
                 >《{{ globalConfig.agreementTitle }}》</a
               >
@@ -376,7 +376,7 @@ async function loginAction() {
       <div>
         <button
           type="submit"
-          class="btn btn-primary btn-lg w-full rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn btn-lg w-full rounded-full border border-[color:var(--glass-border)] bg-[image:var(--accent-gradient)] bg-[size:140%_140%] bg-[position:50%_50%] text-[color:var(--btn-text-primary)] shadow-[var(--accent-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="loading || !captchaForm.contact.trim() || !captchaForm.captchaId"
         >
           <span v-if="loading" class="inline-block mr-2">

@@ -48,4 +48,52 @@
   --tab-active-bg: #ffffff;
   --tab-active-text: #4f46e5;
   --tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  /* ────────── Aurora Edition (Stage 1 Tokens) ────────── */
+  /* Backgrounds */
+  --bg-deep-space: #f6f7fb;
+  --bg-gradient-main:
+    radial-gradient(
+      circle at 0% 0%,
+      rgba(0, 240, 255, 0.14) 0%,
+      rgba(112, 0, 255, 0.1) 28%,
+      rgba(246, 247, 251, 1) 60%
+    ),
+    radial-gradient(circle at 100% 10%, rgba(255, 0, 255, 0.1) 0%, rgba(246, 247, 251, 1) 55%);
+
+  /* Glass Materials (Light) */
+  --glass-bg-primary: rgba(255, 255, 255, 0.64);
+  --glass-bg-secondary: rgba(255, 255, 255, 0.46);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --glass-border-highlight: rgba(255, 255, 255, 0.9);
+  --glass-blur: blur(18px) saturate(165%);
+  --glass-shadow: 0 14px 40px rgba(16, 24, 40, 0.16), 0 1px 0 rgba(255, 255, 255, 0.35);
+  --glass-inner-glow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 24px rgba(255, 255, 255, 0.22);
+
+  /* Aurora Accents (Light, restrained) */
+  --accent-cyan: #00cbe0;
+  --accent-cyan-rgb: 0, 203, 224;
+  --accent-fuchsia: #d400d4;
+  --accent-violet: #6a4bff;
+  --accent-gradient: linear-gradient(135deg, #00cbe0 0%, #6a4bff 52%, #d400d4 100%);
+  --accent-glow: 0 0 18px rgba(0, 203, 224, 0.22);
+
+  /* Text (Light) */
+  --text-primary: rgba(15, 23, 42, 0.92);
+  --text-secondary: rgba(15, 23, 42, 0.62);
+  --text-tertiary: rgba(15, 23, 42, 0.38);
+
+  /* Noise */
+  --noise-opacity: 0.05;
+  --noise-blend-mode: multiply;
+
+  /* Overlay (Stage 8) */
+  --overlay-mask: rgba(15, 23, 42, 0.22);
+
+  /* Motion (Stage 7) */
+  --motion-fast: 150ms;
+  --motion-normal: 220ms;
+  --motion-slow: 360ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }

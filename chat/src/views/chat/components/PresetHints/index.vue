@@ -39,7 +39,7 @@ const getRandomColorClass = () => {
               :icon="item.icon"
               :class="['mb-0 inline-block text-base', getRandomColorClass()]"
             />
-            <div class="flex-grow text-gray-600 dark:text-gray-500 text-sm truncate">
+            <div class="flex-grow text-[color:var(--text-secondary)] text-sm truncate">
               {{ item.title }}
             </div>
           </div>

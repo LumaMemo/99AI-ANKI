@@ -1390,10 +1390,10 @@ const shouldShowButtonText = computed(() => {
         @drop="handleDrop"
       >
         <div
-          class="flex w-full border border-gray-400 dark:border-gray-700 hover:ring-1 hover:ring-primary-500 dark:hover:ring-primary-500 focus-within:ring-1 focus-within:ring-primary-500 dark:focus-within:ring-primary-500 justify-center items-center flex-col rounded-3xl resize-none px-2 transition-all duration-200"
+          class="input-capsule flex w-full justify-center items-center flex-col resize-none px-2 transition-all duration-200"
           :class="{
-            'ring-1 ring-primary-500 dark:ring-primary-500': isDragging,
-            'bg-gray-50 dark:bg-gray-700/80': isFileDraggingOverPage,
+            'input-capsule--drag': isDragging,
+            'input-capsule--dragover': isFileDraggingOverPage,
           }"
           :style="{ minHeight: '1.5rem', position: 'relative' }"
         >
@@ -1401,7 +1401,7 @@ const shouldShowButtonText = computed(() => {
 
           <div
             v-if="showSuggestions && !isSelectedApp && searchResults.length !== 0"
-            class="w-full z-50 bg-white my-2 px-1 py-1 justify-center items-center flex-col rounded-2xl resize-none dark:bg-gray-800 border border-gray-400 dark:border-gray-700"
+            class="w-full z-50 glass my-2 px-1 py-1 justify-center items-center flex-col rounded-2xl resize-none"
             :style="{
               minHeight: '1.5rem',
               position: 'absolute',
@@ -1416,7 +1416,7 @@ const shouldShowButtonText = computed(() => {
               v-for="app in searchResults"
               :key="app.id"
               @click="selectApp(app)"
-              class="flex items-center bg-white dark:bg-gray-800 hover:bg-opacity py-2 px-2 dark:hover:bg-gray-700 rounded-2xl w-full cursor-pointer duration-150 ease-in-out"
+              class="flex items-center py-2 px-2 rounded-2xl w-full cursor-pointer duration-150 ease-in-out hover:bg-[color:var(--glass-bg-primary)]"
             >
               <div
                 class="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center overflow-hidden shadow-sm border border-gray-300 mr-3"
@@ -1460,7 +1460,7 @@ const shouldShowButtonText = computed(() => {
             <div v-if="shouldShowExpandButton" class="absolute right-1 top-2 z-10 group">
               <button
                 @click="toggleExpanded"
-                class="btn-pill btn-sm"
+                class="btn-pill btn-sm footer-pill"
                 :aria-label="isExpanded ? '收起输入框' : '展开输入框'"
               >
                 <OffScreen v-if="isExpanded" size="15" />
@@ -1505,7 +1505,7 @@ const shouldShowButtonText = computed(() => {
               ref="inputRef"
               v-model="prompt"
               :placeholder="placeholderText"
-              class="flex flex-grow items-center justify-center mt-3 mb-2 w-full placeholder:text-gray-400 dark:placeholder:text-gray-500 text-base resize-none dark:text-gray-400 px-2 bg-transparent custom-scrollbar transition-all duration-300 ease-in-out"
+              class="flex flex-grow items-center justify-center mt-3 mb-2 w-full text-base resize-none px-2 bg-transparent custom-scrollbar transition-all duration-300 ease-in-out text-[color:var(--text-primary)] placeholder:text-[color:var(--text-tertiary)]"
               @input="autoResize"
               @keypress="handleEnter"
               @keyup="handleInput"
@@ -1550,7 +1550,7 @@ const shouldShowButtonText = computed(() => {
               >
                 <button
                   type="button"
-                  class="btn-pill mx-1"
+                  class="btn-pill mx-1 footer-pill"
                   @click="triggerUpload"
                   :aria-label="uploadButtonTooltip"
                 >
@@ -1577,7 +1577,7 @@ const shouldShowButtonText = computed(() => {
 
               <div v-if="shouldShowDeepThinking" class="group relative">
                 <div
-                  class="btn-pill btn-md mx-1"
+                  class="btn-pill btn-md mx-1 footer-pill"
                   :class="[usingDeepThinking ? 'btn-pill-active' : '']"
                   @click="usingDeepThinking = !usingDeepThinking"
                   role="button"
@@ -1595,7 +1595,7 @@ const shouldShowButtonText = computed(() => {
 
               <div v-if="shouldShowNetworkSearch" class="group relative">
                 <div
-                  class="btn-pill btn-md mx-1"
+                  class="btn-pill btn-md mx-1 footer-pill"
                   :class="[usingNetwork ? 'btn-pill-active' : '']"
                   @click="usingNetwork = !usingNetwork"
                   role="button"
@@ -1611,7 +1611,7 @@ const shouldShowButtonText = computed(() => {
 
               <div v-if="shouldShowMermaidTool" class="group relative">
                 <div
-                  class="btn-pill btn-md mx-1"
+                  class="btn-pill btn-md mx-1 footer-pill"
                   :class="[usingMermaid ? 'btn-pill-active' : '']"
                   @click="usingMermaid = !usingMermaid"
                   role="button"

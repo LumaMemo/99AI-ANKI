@@ -5,3 +5,246 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .glass {
+    background: var(--glass-bg-secondary);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    transition:
+      background var(--motion-normal, 220ms) var(--motion-ease, ease),
+      border-color var(--motion-normal, 220ms) var(--motion-ease, ease),
+      box-shadow var(--motion-normal, 220ms) var(--motion-ease, ease);
+  }
+
+  .glass-card {
+    background: var(--glass-bg-primary);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 24px;
+    transition:
+      background var(--motion-normal, 220ms) var(--motion-ease, ease),
+      border-color var(--motion-normal, 220ms) var(--motion-ease, ease),
+      box-shadow var(--motion-normal, 220ms) var(--motion-ease, ease);
+  }
+
+  .aurora-border {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--glass-bg-primary), var(--glass-bg-primary)) padding-box,
+      var(--accent-gradient) border-box;
+    transition:
+      background-position var(--motion-slow, 360ms) var(--motion-ease, ease),
+      box-shadow var(--motion-normal, 220ms) var(--motion-ease, ease);
+  }
+
+  /* Stage 4: Message bubbles */
+  .bubble-ai {
+    display: inline-block;
+    max-width: 100%;
+    background: var(--glass-bg-secondary);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 20px 20px 20px 4px;
+    padding: 12px;
+    color: var(--text-primary);
+  }
+
+  .bubble-user {
+    display: inline-block;
+    max-width: 100%;
+    background:
+      linear-gradient(
+        135deg,
+        rgba(var(--accent-cyan-rgb), 0.2) 0%,
+        rgba(var(--accent-cyan-rgb), 0.1) 55%,
+        rgba(var(--accent-cyan-rgb), 0.06) 100%
+      ),
+      var(--glass-bg-primary);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px 20px 4px 20px;
+    padding: 12px;
+    color: var(--text-primary);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+  }
+
+  /* Stage 4: Code blocks as frosted cards */
+  .code-block-wrapper {
+    background: var(--glass-bg-secondary);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .code-block-header {
+    background: var(--glass-bg-secondary);
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--text-tertiary);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+  }
+
+  /* Stage 5: Input capsule */
+  .input-capsule {
+    background: var(--glass-bg-primary);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 28px;
+    transition:
+      box-shadow var(--motion-normal, 220ms) var(--motion-ease, ease),
+      border-color var(--motion-normal, 220ms) var(--motion-ease, ease),
+      background var(--motion-normal, 220ms) var(--motion-ease, ease);
+  }
+
+  .input-capsule:focus-within {
+    border-color: var(--glass-border-highlight);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+  }
+
+  .input-capsule--drag {
+    border-color: var(--glass-border-highlight);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+  }
+
+  .input-capsule--dragover {
+    background: var(--glass-bg-secondary);
+  }
+
+  /* Stage 5: Footer tool pills (scoped override) */
+  .footer-pill {
+    background: var(--glass-bg-secondary);
+    border: 1px solid var(--glass-border);
+    box-shadow: none;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    color: var(--text-secondary);
+    transition:
+      background var(--motion-fast, 150ms) var(--motion-ease, ease),
+      border-color var(--motion-fast, 150ms) var(--motion-ease, ease),
+      box-shadow var(--motion-fast, 150ms) var(--motion-ease, ease),
+      transform var(--motion-fast, 150ms) var(--motion-ease, ease);
+  }
+
+  .footer-pill:hover {
+    background: var(--glass-bg-primary);
+    border-color: var(--glass-border-highlight);
+  }
+
+  .footer-pill.btn-pill-active {
+    background-image: var(--accent-gradient);
+    background-size: 140% 140%;
+    background-position: 50% 50%;
+    border: 0;
+    border-color: transparent;
+    box-shadow:
+      0 0 0 1px var(--glass-border),
+      var(--accent-glow);
+    color: var(--btn-text-primary);
+  }
+
+  .footer-pill.btn-pill-active:hover {
+    box-shadow:
+      0 0 0 1px var(--glass-border-highlight),
+      var(--accent-glow),
+      var(--glass-shadow);
+  }
+
+  /* Stage 7: Hover/press micro-interactions (opt-in) */
+  .interactive-surface {
+    transition:
+      background var(--motion-normal, 220ms) var(--motion-ease, ease),
+      border-color var(--motion-normal, 220ms) var(--motion-ease, ease),
+      box-shadow var(--motion-normal, 220ms) var(--motion-ease, ease),
+      transform var(--motion-normal, 220ms) var(--motion-ease, ease);
+    will-change: transform, box-shadow;
+  }
+
+  .interactive-surface:hover {
+    border-color: var(--glass-border-highlight);
+    box-shadow: var(--glass-shadow), var(--glass-inner-glow);
+  }
+
+  .interactive-surface:active {
+    transform: translateY(1px);
+  }
+}
+
+@layer utilities {
+  .aurora-text {
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .neon-ring {
+    box-shadow: var(--accent-glow);
+  }
+
+  /* Stage 7: Entry motion */
+  .motion-fade-up {
+    animation: motionFadeUp var(--motion-slow, 360ms) var(--motion-ease, ease) both;
+  }
+}
+
+@keyframes motionFadeUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Stage 7: Performance / accessibility safeguards */
+@media (max-width: 768px) {
+  .glass,
+  .glass-card,
+  .bubble-ai,
+  .bubble-user,
+  .code-block-wrapper,
+  .code-block-header,
+  .input-capsule,
+  .footer-pill {
+    backdrop-filter: blur(14px) saturate(145%);
+    -webkit-backdrop-filter: blur(14px) saturate(145%);
+  }
+
+  .neon-ring {
+    box-shadow: 0 0 14px rgba(var(--accent-cyan-rgb), 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-up {
+    animation: none;
+  }
+
+  .glass,
+  .glass-card,
+  .aurora-border,
+  .input-capsule,
+  .footer-pill,
+  .interactive-surface {
+    transition: none;
+  }
+
+  .interactive-surface:active {
+    transform: none;
+  }
+}
