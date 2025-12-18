@@ -72,12 +72,18 @@ export class KbController {
     return this.kbService.deleteFile(userId, Number(id));
   }
 
+  @Post('files/:id/retry-delete')
+  async retryDeleteFile(@Req() req: any, @Param('id') id: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.retryDeleteFile(userId, Number(id));
+  }
+
   @Post('files/upload')
   @UseInterceptors(
     FileInterceptor('file', {
       // 这里设置的是“硬上限兜底”，实际单文件上限仍以 kbSinglePdfMaxBytes 配置为准（服务端二次校验）。
       limits: {
-        fileSize: 100 * 1024 * 1024,
+        fileSize: 500 * 1024 * 1024,
       },
     }),
   )

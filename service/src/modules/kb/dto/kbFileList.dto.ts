@@ -4,6 +4,7 @@ export class KbFileListItemDto {
   displayName: string;
   originalName: string;
   sizeBytes: number;
+  status: number;
   createdAt: string;
 }
 

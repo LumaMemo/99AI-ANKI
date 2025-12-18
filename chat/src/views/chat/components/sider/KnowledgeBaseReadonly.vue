@@ -9,6 +9,7 @@ import {
   fetchKbQuotaAPI,
   renameKbFileAPI,
   renameKbFolderAPI,
+  retryDeleteKbFileAPI,
   uploadKbPdfAPI,
 } from '../../../../api/kb'
 import { useAuthStore } from '../../../../store'
@@ -28,6 +29,7 @@ interface PdfRow {
   displayName: string
   originalName: string
   sizeBytes: number
+  status: number
   createdAt: string
 }
 
@@ -135,7 +137,11 @@ function rebuildFolderIndex(root: FolderTreeNode | null) {
 
 async function loadFiles(folderId: number) {
   const res = await fetchKbFilesAPI({ folderId, page: 1, size: 50 })
-  files.value = res.data?.rows ?? []
+  const rows = (res.data?.rows ?? []) as any[]
+  files.value = rows.map(r => ({
+    ...r,
+    status: Number(r?.status ?? 1) || 1,
+  }))
 }
 
 async function loadAll() {
@@ -194,7 +200,11 @@ async function createFolder() {
   try {
     await createKbFolderAPI({ parentId: selectedFolderId.value ?? 0, name })
     await loadTree()
-  } catch {}
+  } catch (e: any) {
+    const msg = e?.message || '新建文件夹失败'
+    loadError.value = msg
+    window.alert(msg)
+  }
 }
 
 async function renameFolder(node: FolderTreeNode) {
@@ -205,7 +215,11 @@ async function renameFolder(node: FolderTreeNode) {
   try {
     await renameKbFolderAPI(node.id, { name })
     await loadTree()
-  } catch {}
+  } catch (e: any) {
+    const msg = e?.message || '重命名失败'
+    loadError.value = msg
+    window.alert(msg)
+  }
 }
 
 async function deleteFolder(node: FolderTreeNode) {
@@ -219,7 +233,11 @@ async function deleteFolder(node: FolderTreeNode) {
     const parentId = parentById.value.get(node.id) ?? 0
     await loadTree()
     selectedFolderId.value = parentId
-  } catch {}
+  } catch (e: any) {
+    const msg = e?.message || '删除文件夹失败'
+    loadError.value = msg
+    window.alert(msg)
+  }
 }
 
 function triggerUpload() {
@@ -233,6 +251,18 @@ async function onFilePicked(ev: Event) {
   input.value = ''
   if (!f) return
 
+  // 先做一层前端提示（最终以服务端校验为准）
+  const quota = Number(quotaBytes.value)
+  const used = Number(usedBytes.value)
+  if (!Number.isFinite(quota) || quota <= 0) {
+    window.alert('当前套餐未开通知识库空间配额，无法上传。')
+    return
+  }
+  if (Number.isFinite(used) && used >= quota) {
+    window.alert('知识库空间已用完，请先删除文件或升级套餐。')
+    return
+  }
+
   const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
   if (!isPdf) {
     window.alert('仅允许上传 PDF')
@@ -243,7 +273,13 @@ async function onFilePicked(ev: Event) {
   try {
     await uploadKbPdfAPI(f, selectedFolderId.value ?? 0)
     await Promise.all([loadQuota(), loadFiles(selectedFolderId.value ?? 0)])
-  } catch {
+  } catch (e: any) {
+    const msg = e?.message || '上传失败'
+    loadError.value = msg
+    // 上传失败时也刷新一次配额，避免 UI 停留在旧值
+    await loadQuota().catch(() => {})
+    // 明确提示：空间不足 / 文件过大
+    if (String(msg).includes('空间不足') || String(msg).includes('文件过大')) window.alert(msg)
   } finally {
     uploading.value = false
   }
@@ -256,29 +292,62 @@ async function renamePdfFile(f: PdfRow) {
   try {
     await renameKbFileAPI(f.id, { displayName: name })
     await loadFiles(selectedFolderId.value ?? 0)
-  } catch {}
+  } catch (e: any) {
+    const msg = e?.message || '重命名失败'
+    loadError.value = msg
+    window.alert(msg)
+  }
 }
 
 async function deletePdfFile(f: PdfRow) {
   if (!isLogin.value) return
+  if (Number(f?.status) === 2) {
+    // 兼容旧数据：历史上可能存在 status=2 的记录
+    const ok = window.confirm(`该文件处于“删除中”状态，是否尝试再次删除？\n\n${f.displayName || f.originalName}`)
+    if (!ok) return
+    return retryDeletePdfFile(f)
+  }
   const ok = window.confirm(`确认删除“${f.displayName || f.originalName}”？`)
   if (!ok) return
 
   try {
     await deleteKbFileAPI(f.id)
     await Promise.all([loadQuota(), loadFiles(selectedFolderId.value ?? 0)])
-  } catch {}
+  } catch (e: any) {
+    const msg = e?.message || '删除失败'
+    loadError.value = msg
+    window.alert(msg)
+    await loadFiles(selectedFolderId.value ?? 0).catch(() => {})
+  }
+}
+
+async function retryDeletePdfFile(f: PdfRow) {
+  if (!isLogin.value) return
+  try {
+    await retryDeleteKbFileAPI(f.id)
+    await Promise.all([loadQuota(), loadFiles(selectedFolderId.value ?? 0)])
+  } catch (e: any) {
+    loadError.value = e?.message || '重试删除失败'
+    await loadFiles(selectedFolderId.value ?? 0).catch(() => {})
+  }
 }
 
 async function previewPdfFile(f: PdfRow) {
   if (!isLogin.value) return
+  if (Number(f?.status) === 2) {
+    window.alert('该文件正在删除中，暂不可预览')
+    return
+  }
   previewingId.value = f.id
   try {
     const res = await fetchKbFileSignedUrlAPI(f.id)
     const url = res.data?.url
     if (!url) throw new Error('签名 URL 为空')
     window.open(url, '_blank', 'noopener')
-  } catch {
+  } catch (e: any) {
+    const msg = e?.message || '预览失败'
+    loadError.value = msg
+    window.alert(msg)
   } finally {
     previewingId.value = null
   }
@@ -549,7 +618,10 @@ onMounted(() => {
                           </div>
                           <div class="flex-1 min-w-0">
                             <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">{{ f.displayName || f.originalName }}</div>
-                            <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">{{ f.originalName }}</div>
+                            <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">
+                              <span v-if="Number(f.status) === 2" class="mr-2 text-red-500">删除中</span>
+                              {{ f.originalName }}
+                            </div>
                           </div>
                           <div class="shrink-0 text-xs text-[color:var(--text-tertiary)]">{{ formatBytes(f.sizeBytes) }}</div>
 
@@ -558,8 +630,8 @@ onMounted(() => {
                               type="button"
                               class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
                               @click.stop="previewPdfFile(f)"
-                              :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id }"
-                              :disabled="previewingId === f.id"
+                              :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id || Number(f.status) === 2 }"
+                              :disabled="previewingId === f.id || Number(f.status) === 2"
                               aria-label="预览 PDF"
                             >
                               {{ previewingId === f.id ? '打开中…' : '预览' }}
@@ -568,6 +640,8 @@ onMounted(() => {
                               type="button"
                               class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
                               @click.stop="renamePdfFile(f)"
+                              :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
+                              :disabled="Number(f.status) === 2"
                               aria-label="重命名 PDF"
                             >
                               重命名
@@ -578,7 +652,7 @@ onMounted(() => {
                               @click.stop="deletePdfFile(f)"
                               aria-label="删除 PDF"
                             >
-                              删除
+                              {{ Number(f.status) === 2 ? '重试删除' : '删除' }}
                             </button>
                           </div>
                         </div>

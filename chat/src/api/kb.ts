@@ -19,6 +19,7 @@ export interface KbPdfRowDto {
   displayName: string
   originalName: string
   sizeBytes: number
+  status: number
   createdAt: string
 }
 
@@ -92,6 +93,12 @@ export function renameKbFileAPI(fileId: number, body: { displayName: string }) {
 export function deleteKbFileAPI(fileId: number) {
   return del({
     url: `/kb/files/${fileId}`,
+  })
+}
+
+export function retryDeleteKbFileAPI(fileId: number) {
+  return post({
+    url: `/kb/files/${fileId}/retry-delete`,
   })
 }
 

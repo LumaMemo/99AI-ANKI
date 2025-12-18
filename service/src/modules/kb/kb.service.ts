@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as TENCENTCOS from 'cos-nodejs-sdk-v5';
@@ -24,7 +25,7 @@ import { KbUserUsageEntity } from './kbUserUsage.entity';
 const DEFAULT_FREE_QUOTA_BYTES = 50 * 1024 * 1024;
 const DEFAULT_KB_COS_PREFIX = 'kb';
 const DEFAULT_KB_COS_SIGNED_URL_EXPIRES_SECONDS = 60;
-const DEFAULT_KB_SINGLE_PDF_MAX_BYTES = 100 * 1024 * 1024;
+const DEFAULT_KB_SINGLE_PDF_MAX_BYTES = 500 * 1024 * 1024;
 
 type KbCosConfig = {
   enabled: boolean;
@@ -391,6 +392,7 @@ export class KbService {
         displayName: r.displayName,
         originalName: r.originalName,
         sizeBytes: this.toNumber(r.sizeBytes, 0),
+        status: Number(r.status ?? 1),
         createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
       })),
       count,
@@ -485,13 +487,17 @@ export class KbService {
 
     // 单文件上限（以配置为准）
     if (sizeBytes > cfg.singlePdfMaxBytes) {
-      throw new BadRequestException(`单文件大小超过上限：最大允许 ${cfg.singlePdfMaxBytes} 字节`);
+      throw new PayloadTooLargeException(
+        `文件过大：单文件最大允许 ${cfg.singlePdfMaxBytes} 字节（当前 ${sizeBytes} 字节）`,
+      );
     }
 
     // 配额校验
     const quota = await this.getQuota(userId);
     if (sizeBytes > quota.remainingBytes) {
-      throw new BadRequestException('知识库空间不足：剩余配额不足以上传该文件');
+      throw new BadRequestException(
+        `知识库空间不足：剩余 ${quota.remainingBytes} 字节（需 ${sizeBytes} 字节）。请删除部分文件或升级套餐`,
+      );
     }
 
     // folderPath
@@ -644,53 +650,68 @@ export class KbService {
     const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
     if (!id) throw new BadRequestException('非法文件ID');
 
-    // 删除强依赖 COS
-    await this.getKbCosConfigOrThrow();
+    return this.deleteFileCore(userId, id);
+  }
 
+  async retryDeleteFile(userId: number, fileId: number): Promise<{ success: boolean }> {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    // 兼容旧前端/旧数据：即使是“删除中(status=2)”也允许直接删除 DB。
+    // 按当前策略：COS 删除失败不阻塞，直接删库即可，因此此接口等价于 delete。
+    return this.deleteFileCore(userId, id);
+  }
+
+  private async deleteFileCore(userId: number, id: number): Promise<{ success: boolean }> {
     const record = await this.pdfRepo.findOne({ where: { id, userId } });
-    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
-    if (!record.cosKey) throw new InternalServerErrorException('文件 COS Key 缺失');
-    if (!record.cosBucket) throw new InternalServerErrorException('文件 COS Bucket 缺失');
-    if (!record.cosRegion) throw new InternalServerErrorException('文件 COS Region 缺失');
+    if (!record) throw new NotFoundException('文件不存在');
 
     const sizeBytes = this.toNumber(record.sizeBytes, 0);
 
-    // 1) 标记 deleting
-    record.status = 2;
-    await this.pdfRepo.save(record);
-
-    // 2) 删除 COS 对象
-    const cfg = await this.getKbCosConfigOrThrow();
-    const cos = new TENCENTCOS({
-      SecretId: cfg.secretId,
-      SecretKey: cfg.secretKey,
-      FileParallelLimit: 10,
-    });
-
+    // 1) 尝试删除 COS（best-effort）：失败不阻塞删库
+    // - 允许 COS 未启用/未配置时仍能删库
+    // - 允许 record 上缺少 cosKey/cosBucket/cosRegion 时仍能删库
     try {
-      await new Promise((resolve, reject) => {
-        cos.deleteObject(
-          {
-            Bucket: removeSpecialCharacters(record.cosBucket),
-            Region: removeSpecialCharacters(record.cosRegion),
-            Key: record.cosKey,
-          },
-          (err, data) => {
-            if (err) return reject(err);
-            return resolve(data);
-          },
-        );
-      });
-    } catch (e: any) {
-      // 保持 deleting 状态，便于后续重试/人工修复
-      throw new InternalServerErrorException(`删除 COS 对象失败：${e?.message || '未知错误'}`);
+      const cfg = await this.getKbCosConfig();
+      if (
+        cfg.enabled &&
+        cfg.secretId &&
+        cfg.secretKey &&
+        cfg.bucket &&
+        cfg.region &&
+        record.cosKey &&
+        record.cosBucket &&
+        record.cosRegion
+      ) {
+        const cos = new TENCENTCOS({
+          SecretId: cfg.secretId,
+          SecretKey: cfg.secretKey,
+          FileParallelLimit: 10,
+        });
+
+        await new Promise((resolve, reject) => {
+          cos.deleteObject(
+            {
+              Bucket: removeSpecialCharacters(record.cosBucket),
+              Region: removeSpecialCharacters(record.cosRegion),
+              Key: record.cosKey,
+            },
+            (err, data) => {
+              if (err) return reject(err);
+              return resolve(data);
+            },
+          );
+        });
+      }
+    } catch {
+      // ignore：按产品要求，COS 删除失败也直接删库
     }
 
-    // 3) 标记 deleted
-    record.status = 3;
-    await this.pdfRepo.save(record);
+    // 2) 删除 DB 记录（从列表彻底移除）
+    await this.pdfRepo.delete({ id, userId });
 
-    // 4) usedBytes -= sizeBytes（不低于 0）
+    // 3) usedBytes -= sizeBytes（不低于 0）
     if (sizeBytes > 0) {
       await this.usageRepo
         .createQueryBuilder()
