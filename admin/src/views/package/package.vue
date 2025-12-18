@@ -43,6 +43,7 @@ meta:
     updatedAt?: Date | null;
     deletedAt?: Date | null;
     appCats?: string | null;
+    kbQuotaBytes?: number | string | null;
   }
 
   const status = ref(0);
@@ -59,7 +60,45 @@ meta:
     model4Count: null,
     drawMjCount: null,
     appCats: '',
+    kbQuotaBytes: 0 as any,
   });
+
+  type KbQuotaUnit = 'MB' | 'GB';
+  const kbQuotaSize = ref<number | null>(0);
+  const kbQuotaUnit = ref<KbQuotaUnit>('GB');
+
+  const KB_MB = 1024 * 1024;
+  const KB_GB = 1024 * 1024 * 1024;
+
+  function calcKbQuotaBytes(size: number | null, unit: KbQuotaUnit): number {
+    const n = Number(size || 0);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    const mul = unit === 'GB' ? KB_GB : KB_MB;
+    return Math.floor(n * mul);
+  }
+
+  function syncKbQuotaInputFromBytes(bytesLike: unknown) {
+    const bytes = Number(bytesLike || 0);
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      kbQuotaUnit.value = 'GB';
+      kbQuotaSize.value = 0;
+      return;
+    }
+    if (bytes >= KB_GB) {
+      kbQuotaUnit.value = 'GB';
+      kbQuotaSize.value = Number((bytes / KB_GB).toFixed(2));
+      return;
+    }
+    kbQuotaUnit.value = 'MB';
+    kbQuotaSize.value = Number((bytes / KB_MB).toFixed(0));
+  }
+
+  function formatKbQuota(bytesLike: unknown): string {
+    const bytes = Number(bytesLike || 0);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0';
+    if (bytes >= KB_GB) return `${(bytes / KB_GB).toFixed(2)}GB`;
+    return `${Math.ceil(bytes / KB_MB)}MB`;
+  }
 
   const rules = reactive<FormRules>({
     name: [{ required: true, message: '请填写套餐名称', trigger: 'blur' }],
@@ -194,6 +233,8 @@ meta:
       Object.assign(formPackage, row as any);
       // 确保appCats字段正确设置
       formPackage.appCats = row.appCats || '';
+      // KB 配额展示值（MB/GB）
+      syncKbQuotaInputFromBytes(row.kbQuotaBytes);
       // 移除不需要的字段
       delete (formPackage as any).createdAt;
       delete (formPackage as any).updatedAt;
@@ -224,6 +265,9 @@ meta:
       formPackageRef.value?.resetFields();
       // 确保初始化时appCats为空字符串而不是null
       formPackage.appCats = '';
+      // KB 配额默认 0
+      kbQuotaUnit.value = 'GB';
+      kbQuotaSize.value = 0;
       console.log('初始化appCats:', formPackage.appCats); // 添加日志便于调试
     });
   }
@@ -236,8 +280,10 @@ meta:
   async function handlerSubmit(formEl: FormInstance | undefined) {
     formEl?.validate(async (valid) => {
       if (valid) {
+        const kbQuotaBytes = calcKbQuotaBytes(kbQuotaSize.value, kbQuotaUnit.value);
         const submitData = {
           ...formPackage,
+          kbQuotaBytes,
         };
 
         if (activePackageId.value) {
@@ -392,6 +438,11 @@ meta:
         <el-table-column prop="model3Count" label="基础模型额度" width="100" />
         <el-table-column prop="model4Count" label="高级模型额度" width="100" />
         <el-table-column prop="drawMjCount" label="绘画额度" width="100" />
+        <el-table-column prop="kbQuotaBytes" label="知识库空间" width="120" align="center">
+          <template #default="scope">
+            {{ formatKbQuota(scope.row.kbQuotaBytes) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="des" label="套餐描述" width="300" />
         <el-table-column prop="createdAt" label="创建时间" width="200">
           <template #default="scope">
@@ -573,6 +624,16 @@ meta:
                 type="number"
                 placeholder="绘画模型积分"
               />
+            </el-form-item>
+            <el-form-item label="知识库空间" prop="kbQuotaBytes">
+              <el-input v-model.number="kbQuotaSize" type="number" placeholder="0 表示不提供">
+                <template #append>
+                  <el-select v-model="kbQuotaUnit" style="width: 90px">
+                    <el-option label="MB" value="MB" />
+                    <el-option label="GB" value="GB" />
+                  </el-select>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
         </el-row>
