@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CramiPackageEntity } from '../crami/cramiPackage.entity';
+import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 import { KbFolderCreateDto } from './dto/kbFolderCreate.dto';
 import { KbFolderRenameDto } from './dto/kbFolderRename.dto';
@@ -18,6 +19,20 @@ import { KbPdfEntity } from './kbPdf.entity';
 import { KbUserUsageEntity } from './kbUserUsage.entity';
 
 const DEFAULT_FREE_QUOTA_BYTES = 50 * 1024 * 1024;
+const DEFAULT_KB_COS_PREFIX = 'kb';
+const DEFAULT_KB_COS_SIGNED_URL_EXPIRES_SECONDS = 60;
+const DEFAULT_KB_SINGLE_PDF_MAX_BYTES = 100 * 1024 * 1024;
+
+type KbCosConfig = {
+  enabled: boolean;
+  secretId: string;
+  secretKey: string;
+  bucket: string;
+  region: string;
+  prefix: string;
+  signedUrlExpiresSeconds: number;
+  singlePdfMaxBytes: number;
+};
 
 @Injectable()
 export class KbService {
@@ -32,6 +47,7 @@ export class KbService {
     private readonly folderRepo: Repository<KbFolderEntity>,
     @InjectRepository(KbPdfEntity)
     private readonly pdfRepo: Repository<KbPdfEntity>,
+    private readonly globalConfigService: GlobalConfigService,
   ) {}
 
   private toNumber(value: unknown, defaultValue = 0): number {
@@ -45,7 +61,121 @@ export class KbService {
     return defaultValue;
   }
 
+  private toPositiveIntOrUndefined(value: unknown): number | undefined {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return undefined;
+    const intVal = Math.floor(parsed);
+    if (intVal <= 0) return undefined;
+    return intVal;
+  }
+
+  private toTrimmedString(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  }
+
+  private async readKbCosConfigRaw() {
+    return (await this.globalConfigService.getConfigs([
+      'kbTencentCosStatus',
+      'kbCosSecretId',
+      'kbCosSecretKey',
+      'kbCosBucket',
+      'kbCosRegion',
+      'kbCosPrefix',
+      'kbCosSignedUrlExpiresSeconds',
+      'kbSinglePdfMaxBytes',
+    ])) as Record<string, any>;
+  }
+
+  private buildKbCosConfigFromRaw(raw: Record<string, any>): KbCosConfig {
+    const enabled = Number(raw?.kbTencentCosStatus ?? 0) === 1;
+
+    const prefixRaw = this.toTrimmedString(raw?.kbCosPrefix);
+    const prefix = prefixRaw || DEFAULT_KB_COS_PREFIX;
+
+    const expiresOptional = this.toPositiveIntOrUndefined(raw?.kbCosSignedUrlExpiresSeconds);
+    const signedUrlExpiresSeconds =
+      expiresOptional ?? DEFAULT_KB_COS_SIGNED_URL_EXPIRES_SECONDS;
+
+    const maxBytesOptional = this.toPositiveIntOrUndefined(raw?.kbSinglePdfMaxBytes);
+    const singlePdfMaxBytes = maxBytesOptional ?? DEFAULT_KB_SINGLE_PDF_MAX_BYTES;
+
+    return {
+      enabled,
+      secretId: this.toTrimmedString(raw?.kbCosSecretId),
+      secretKey: this.toTrimmedString(raw?.kbCosSecretKey),
+      bucket: this.toTrimmedString(raw?.kbCosBucket),
+      region: this.toTrimmedString(raw?.kbCosRegion),
+      prefix,
+      signedUrlExpiresSeconds,
+      singlePdfMaxBytes,
+    };
+  }
+
+  /**
+   * 读取 KB 腾讯云 COS 配置（不抛错：用于不依赖 COS 的接口提前 warm-up / 兜底默认值）
+   */
+  private async getKbCosConfig(): Promise<KbCosConfig> {
+    const raw = await this.readKbCosConfigRaw();
+    return this.buildKbCosConfigFromRaw(raw);
+  }
+
+  /**
+   * 读取并校验 KB 腾讯云 COS 配置（会抛出“可解释”的 400 错误，供上传/签名 URL 等依赖 COS 的接口调用）
+   */
+  private async getKbCosConfigOrThrow(): Promise<KbCosConfig> {
+    const raw = await this.readKbCosConfigRaw();
+    const cfg = this.buildKbCosConfigFromRaw(raw);
+
+    if (!cfg.enabled) {
+      throw new BadRequestException(
+        '知识库腾讯云 COS 未启用：请在后台系统配置 configKey=kbTencentCosStatus 为 1',
+      );
+    }
+
+    const missingKeys: string[] = [];
+    if (!cfg.secretId) missingKeys.push('kbCosSecretId');
+    if (!cfg.secretKey) missingKeys.push('kbCosSecretKey');
+    if (!cfg.bucket) missingKeys.push('kbCosBucket');
+    if (!cfg.region) missingKeys.push('kbCosRegion');
+
+    if (missingKeys.length > 0) {
+      throw new BadRequestException(
+        `知识库腾讯云 COS 配置缺失：${missingKeys.join(', ')}。请在后台系统的 config 表补齐这些 configKey`,
+      );
+    }
+
+    // 数值配置存在但非法时给出可解释错误（缺省则走默认值）
+    if (
+      raw?.kbCosSignedUrlExpiresSeconds !== null &&
+      raw?.kbCosSignedUrlExpiresSeconds !== undefined &&
+      String(raw?.kbCosSignedUrlExpiresSeconds).trim() !== '' &&
+      !this.toPositiveIntOrUndefined(raw?.kbCosSignedUrlExpiresSeconds)
+    ) {
+      throw new BadRequestException(
+        '知识库腾讯云 COS 配置非法：kbCosSignedUrlExpiresSeconds 必须为正整数（单位：秒）',
+      );
+    }
+    if (
+      raw?.kbSinglePdfMaxBytes !== null &&
+      raw?.kbSinglePdfMaxBytes !== undefined &&
+      String(raw?.kbSinglePdfMaxBytes).trim() !== '' &&
+      !this.toPositiveIntOrUndefined(raw?.kbSinglePdfMaxBytes)
+    ) {
+      throw new BadRequestException(
+        '知识库腾讯云 COS 配置非法：kbSinglePdfMaxBytes 必须为正整数（单位：字节）',
+      );
+    }
+
+    return cfg;
+  }
+
   async getQuota(userId: number): Promise<KbQuotaResponseDto> {
+    // Step 7：触发一次配置读取（不校验、不影响配额接口返回）
+    await this.getKbCosConfig();
+
     // 1) quotaBytes
     let quotaBytes = DEFAULT_FREE_QUOTA_BYTES;
 
