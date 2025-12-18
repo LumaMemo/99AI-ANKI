@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
 import { Close } from '@icon-park/vue-next'
+import { dialog } from '../../../../utils/dialog'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 interface FolderTreeNode {
@@ -36,6 +37,7 @@ interface PdfRow {
 const authStore = useAuthStore()
 const isLogin = computed(() => authStore.isLogin)
 const { isMobile } = useBasicLayout()
+const dlg = dialog()
 
 const visible = ref(false)
 
@@ -185,8 +187,14 @@ function onSelectFolder(id: number) {
   selectedFolderId.value = id
 }
 
-function promptName(title: string, defaultValue = '') {
-  const v = window.prompt(title, defaultValue)
+async function promptName(title: string, defaultValue = '', placeholder = '请输入') {
+  const v = await dlg.prompt({
+    title,
+    defaultValue,
+    placeholder,
+    maxLength: 255,
+    required: true,
+  })
   if (v === null) return null
   const name = String(v).trim()
   if (!name) return null
@@ -195,7 +203,7 @@ function promptName(title: string, defaultValue = '') {
 
 async function createFolder() {
   if (!isLogin.value) return
-  const name = promptName('新建文件夹：请输入名称')
+  const name = await promptName('新建文件夹', '', '请输入文件夹名称')
   if (!name) return
   try {
     await createKbFolderAPI({ parentId: selectedFolderId.value ?? 0, name })
@@ -210,7 +218,7 @@ async function createFolder() {
 async function renameFolder(node: FolderTreeNode) {
   if (!isLogin.value) return
   if (!node || !node.id) return
-  const name = promptName('重命名文件夹：请输入新名称', node.name)
+  const name = await promptName('重命名文件夹', node.name, '请输入新名称')
   if (!name) return
   try {
     await renameKbFolderAPI(node.id, { name })
@@ -225,8 +233,17 @@ async function renameFolder(node: FolderTreeNode) {
 async function deleteFolder(node: FolderTreeNode) {
   if (!isLogin.value) return
   if (!node || !node.id) return
-  const ok = window.confirm(`确认删除文件夹“${node.name}”？\n（仅允许删除空文件夹）`)
-  if (!ok) return
+
+  try {
+    await dlg.warning({
+      title: '删除文件夹',
+      content: `确认删除文件夹“${node.name}”？\n（仅允许删除空文件夹）`,
+      positiveText: '删除',
+      negativeText: '取消',
+    })
+  } catch {
+    return
+  }
 
   try {
     await deleteKbFolderAPI(node.id)
@@ -287,7 +304,7 @@ async function onFilePicked(ev: Event) {
 
 async function renamePdfFile(f: PdfRow) {
   if (!isLogin.value) return
-  const name = promptName('重命名 PDF：请输入新展示名', f.displayName || f.originalName)
+  const name = await promptName('重命名 PDF', f.displayName || f.originalName, '请输入新展示名')
   if (!name) return
   try {
     await renameKbFileAPI(f.id, { displayName: name })
@@ -303,12 +320,29 @@ async function deletePdfFile(f: PdfRow) {
   if (!isLogin.value) return
   if (Number(f?.status) === 2) {
     // 兼容旧数据：历史上可能存在 status=2 的记录
-    const ok = window.confirm(`该文件处于“删除中”状态，是否尝试再次删除？\n\n${f.displayName || f.originalName}`)
-    if (!ok) return
+    try {
+      await dlg.warning({
+        title: '重试删除',
+        content: `该文件处于“删除中”状态，是否尝试再次删除？\n\n${f.displayName || f.originalName}`,
+        positiveText: '继续删除',
+        negativeText: '取消',
+      })
+    } catch {
+      return
+    }
     return retryDeletePdfFile(f)
   }
-  const ok = window.confirm(`确认删除“${f.displayName || f.originalName}”？`)
-  if (!ok) return
+
+  try {
+    await dlg.warning({
+      title: '删除 PDF',
+      content: `确认删除“${f.displayName || f.originalName}”？`,
+      positiveText: '删除',
+      negativeText: '取消',
+    })
+  } catch {
+    return
+  }
 
   try {
     await deleteKbFileAPI(f.id)
