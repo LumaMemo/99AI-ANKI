@@ -57,8 +57,31 @@ const uploading = ref(false)
 const previewingId = ref<number | null>(null)
 
 const quotaPercent = computed(() => {
-  if (!quotaBytes.value) return 0
-  return Math.max(0, Math.min(100, Math.round((usedBytes.value / quotaBytes.value) * 100)))
+  const quota = Number(quotaBytes.value)
+  const used = Number(usedBytes.value)
+  if (!Number.isFinite(quota) || quota <= 0) return 0
+  if (!Number.isFinite(used) || used <= 0) return 0
+
+  const p = (used / quota) * 100
+  if (!Number.isFinite(p)) return 0
+  return Math.max(0, Math.min(100, p))
+})
+
+const quotaPercentInt = computed(() => Math.round(quotaPercent.value))
+const quotaBarStyle = computed(() => {
+  const quota = Number(quotaBytes.value)
+  const used = Number(usedBytes.value)
+  const p = quotaPercent.value
+
+  const style: Record<string, string> = {
+    width: `${p.toFixed(2)}%`,
+  }
+
+  // 极小占比也给一个可见的最小宽度，避免看起来“没显示”
+  if (Number.isFinite(quota) && quota > 0 && Number.isFinite(used) && used > 0 && p > 0 && p < 1)
+    style.minWidth = '6px'
+
+  return style
 })
 
 function formatBytes(bytes: number) {
@@ -76,8 +99,8 @@ function formatBytes(bytes: number) {
 
 async function loadQuota() {
   const res = await fetchKbQuotaAPI()
-  quotaBytes.value = res.data.quotaBytes ?? 0
-  usedBytes.value = res.data.usedBytes ?? 0
+  quotaBytes.value = Number((res as any)?.data?.quotaBytes) || 0
+  usedBytes.value = Number((res as any)?.data?.usedBytes) || 0
 }
 
 async function loadTree() {
@@ -349,8 +372,8 @@ onMounted(() => {
 
         <div class="mt-2 h-2 w-full rounded-full bg-[color:var(--glass-bg-secondary)] overflow-hidden">
           <div
-            class="h-full bg-[color:var(--primary-color)] transition-[width] duration-300"
-            :style="{ width: `${quotaPercent}%` }"
+            class="h-full bg-[color:var(--btn-bg-primary)] transition-[width] duration-300"
+            :style="quotaBarStyle"
           />
         </div>
       </button>
@@ -434,8 +457,8 @@ onMounted(() => {
                   class="h-2 w-full rounded-full bg-[color:var(--glass-bg-secondary)] overflow-hidden"
                 >
                   <div
-                    class="h-full bg-[color:var(--primary-color)] transition-[width] duration-300"
-                    :style="{ width: `${quotaPercent}%` }"
+                    class="h-full bg-[color:var(--btn-bg-primary)] transition-[width] duration-300"
+                    :style="quotaBarStyle"
                   />
                 </div>
 
