@@ -1,20 +1,20 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
 import { KbFileListResponseDto } from './dto/kbFileList.dto';
 import { KbFolderTreeNodeDto } from './dto/kbFolderTree.dto';
 import { KbQuotaResponseDto } from './dto/kbQuota.dto';
+import { KbService } from './kb.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('kb')
 export class KbController {
+  constructor(private readonly kbService: KbService) {}
+
   @Get('quota')
-  quota(): KbQuotaResponseDto {
-    return {
-      quotaBytes: 0,
-      usedBytes: 0,
-      remainingBytes: 0,
-    };
+  async quota(@Req() req: any): Promise<KbQuotaResponseDto> {
+    const userId = Number(req?.user?.id);
+    return this.kbService.getQuota(userId);
   }
 
   @Get('folders/tree')
