@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { fetchKbFilesAPI, fetchKbFoldersTreeAPI, fetchKbQuotaAPI } from '../../../../api/kb'
+import {
+  createKbFolderAPI,
+  deleteKbFileAPI,
+  deleteKbFolderAPI,
+  fetchKbFileSignedUrlAPI,
+  fetchKbFilesAPI,
+  fetchKbFoldersTreeAPI,
+  fetchKbQuotaAPI,
+  renameKbFileAPI,
+  renameKbFolderAPI,
+  uploadKbPdfAPI,
+} from '../../../../api/kb'
 import { useAuthStore } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
 import { Close } from '@icon-park/vue-next'
@@ -40,6 +51,10 @@ const parentById = ref(new Map<number, number | null>())
 const childrenById = ref(new Map<number, FolderTreeNode[]>())
 
 const files = ref<PdfRow[]>([])
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const previewingId = ref<number | null>(null)
 
 const quotaPercent = computed(() => {
   if (!quotaBytes.value) return 0
@@ -115,6 +130,11 @@ async function loadAll() {
   }
 }
 
+async function refreshAll(showToast = false) {
+  await loadAll()
+  if (showToast) window.alert('已刷新')
+}
+
 function openPane() {
   if (!isLogin.value) return
   visible.value = true
@@ -134,6 +154,111 @@ const drawerWidthClass = computed(() => {
 
 function onSelectFolder(id: number) {
   selectedFolderId.value = id
+}
+
+function promptName(title: string, defaultValue = '') {
+  const v = window.prompt(title, defaultValue)
+  if (v === null) return null
+  const name = String(v).trim()
+  if (!name) return null
+  return name
+}
+
+async function createFolder() {
+  if (!isLogin.value) return
+  const name = promptName('新建文件夹：请输入名称')
+  if (!name) return
+  try {
+    await createKbFolderAPI({ parentId: selectedFolderId.value ?? 0, name })
+    await loadTree()
+  } catch {}
+}
+
+async function renameFolder(node: FolderTreeNode) {
+  if (!isLogin.value) return
+  if (!node || !node.id) return
+  const name = promptName('重命名文件夹：请输入新名称', node.name)
+  if (!name) return
+  try {
+    await renameKbFolderAPI(node.id, { name })
+    await loadTree()
+  } catch {}
+}
+
+async function deleteFolder(node: FolderTreeNode) {
+  if (!isLogin.value) return
+  if (!node || !node.id) return
+  const ok = window.confirm(`确认删除文件夹“${node.name}”？\n（仅允许删除空文件夹）`)
+  if (!ok) return
+
+  try {
+    await deleteKbFolderAPI(node.id)
+    const parentId = parentById.value.get(node.id) ?? 0
+    await loadTree()
+    selectedFolderId.value = parentId
+  } catch {}
+}
+
+function triggerUpload() {
+  if (!isLogin.value) return
+  fileInputRef.value?.click()
+}
+
+async function onFilePicked(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const f = input?.files?.[0]
+  input.value = ''
+  if (!f) return
+
+  const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+  if (!isPdf) {
+    window.alert('仅允许上传 PDF')
+    return
+  }
+
+  uploading.value = true
+  try {
+    await uploadKbPdfAPI(f, selectedFolderId.value ?? 0)
+    await Promise.all([loadQuota(), loadFiles(selectedFolderId.value ?? 0)])
+  } catch {
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function renamePdfFile(f: PdfRow) {
+  if (!isLogin.value) return
+  const name = promptName('重命名 PDF：请输入新展示名', f.displayName || f.originalName)
+  if (!name) return
+  try {
+    await renameKbFileAPI(f.id, { displayName: name })
+    await loadFiles(selectedFolderId.value ?? 0)
+  } catch {}
+}
+
+async function deletePdfFile(f: PdfRow) {
+  if (!isLogin.value) return
+  const ok = window.confirm(`确认删除“${f.displayName || f.originalName}”？`)
+  if (!ok) return
+
+  try {
+    await deleteKbFileAPI(f.id)
+    await Promise.all([loadQuota(), loadFiles(selectedFolderId.value ?? 0)])
+  } catch {}
+}
+
+async function previewPdfFile(f: PdfRow) {
+  if (!isLogin.value) return
+  previewingId.value = f.id
+  try {
+    const res = await fetchKbFileSignedUrlAPI(f.id)
+    const url = res.data?.url
+    if (!url) throw new Error('签名 URL 为空')
+    window.open(url, '_blank', 'noopener')
+  } catch {
+  } finally {
+    previewingId.value = null
+  }
 }
 
 const breadcrumb = computed(() => {
@@ -260,10 +385,49 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <button type="button" class="btn-icon btn-md" @click="closePane" aria-label="关闭">
-                  <Close size="20" />
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    @click="refreshAll(false)"
+                    aria-label="刷新知识库"
+                  >
+                    刷新
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    @click="createFolder"
+                    aria-label="新建文件夹"
+                  >
+                    新建
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    :class="{ 'opacity-60 cursor-not-allowed': uploading }"
+                    :disabled="uploading"
+                    @click="triggerUpload"
+                    aria-label="上传 PDF"
+                  >
+                    {{ uploading ? '上传中…' : '上传' }}
+                  </button>
+
+                  <button type="button" class="btn-icon btn-md" @click="closePane" aria-label="关闭">
+                    <Close size="20" />
+                  </button>
+                </div>
               </div>
+
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="application/pdf"
+                class="hidden"
+                @change="onFilePicked"
+              />
 
               <div class="px-4 pt-3">
                 <div
@@ -310,20 +474,43 @@ onMounted(() => {
                     <div v-if="!currentFolders.length" class="mt-2 text-xs text-[color:var(--text-tertiary)]">暂无</div>
                     <ul v-else class="mt-2 space-y-2">
                       <li v-for="d in currentFolders" :key="d.id">
-                        <button
-                          type="button"
-                          class="w-full flex items-center gap-3 px-3 py-2 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
-                          @click="onSelectFolder(d.id)"
-                          :aria-label="`进入文件夹 ${d.name}`"
+                        <div
+                          class="w-full flex items-center gap-3 px-3 py-2 rounded-2xl border border-transparent bg-transparent hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
                         >
-                          <div class="w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center">
-                            <span class="text-[10px] font-bold text-[color:var(--text-tertiary)]">DIR</span>
+                          <button
+                            type="button"
+                            class="flex items-center gap-3 flex-1 min-w-0 text-left"
+                            @click="onSelectFolder(d.id)"
+                            :aria-label="`进入文件夹 ${d.name}`"
+                          >
+                            <div class="w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center">
+                              <span class="text-[10px] font-bold text-[color:var(--text-tertiary)]">DIR</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                              <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">{{ d.name }}</div>
+                              <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">文件夹</div>
+                            </div>
+                          </button>
+
+                          <div class="shrink-0 flex items-center gap-2">
+                            <button
+                              type="button"
+                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                              @click.stop="renameFolder(d)"
+                              aria-label="重命名文件夹"
+                            >
+                              重命名
+                            </button>
+                            <button
+                              type="button"
+                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                              @click.stop="deleteFolder(d)"
+                              aria-label="删除文件夹"
+                            >
+                              删除
+                            </button>
                           </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">{{ d.name }}</div>
-                            <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">文件夹</div>
-                          </div>
-                        </button>
+                        </div>
                       </li>
                     </ul>
 
@@ -342,6 +529,35 @@ onMounted(() => {
                             <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">{{ f.originalName }}</div>
                           </div>
                           <div class="shrink-0 text-xs text-[color:var(--text-tertiary)]">{{ formatBytes(f.sizeBytes) }}</div>
+
+                          <div class="shrink-0 flex items-center gap-2">
+                            <button
+                              type="button"
+                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                              @click.stop="previewPdfFile(f)"
+                              :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id }"
+                              :disabled="previewingId === f.id"
+                              aria-label="预览 PDF"
+                            >
+                              {{ previewingId === f.id ? '打开中…' : '预览' }}
+                            </button>
+                            <button
+                              type="button"
+                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                              @click.stop="renamePdfFile(f)"
+                              aria-label="重命名 PDF"
+                            >
+                              重命名
+                            </button>
+                            <button
+                              type="button"
+                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                              @click.stop="deletePdfFile(f)"
+                              aria-label="删除 PDF"
+                            >
+                              删除
+                            </button>
+                          </div>
                         </div>
                       </li>
                     </ul>

@@ -3,6 +3,7 @@ import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KbFileListResponseDto } from './dto/kbFileList.dto';
+import { KbFileRenameDto } from './dto/kbFileRename.dto';
 import { KbFolderCreateDto } from './dto/kbFolderCreate.dto';
 import { KbFolderRenameDto } from './dto/kbFolderRename.dto';
 import { KbFolderTreeNodeDto } from './dto/kbFolderTree.dto';
@@ -57,6 +58,12 @@ export class KbController {
   async signedUrl(@Req() req: any, @Param('id') id: string) {
     const userId = Number(req?.user?.id);
     return this.kbService.getFileSignedUrl(userId, Number(id));
+  }
+
+  @Patch('files/:id')
+  async renameFile(@Req() req: any, @Param('id') id: string, @Body() body: KbFileRenameDto) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.renameFile(userId, Number(id), body);
   }
 
   @Delete('files/:id')

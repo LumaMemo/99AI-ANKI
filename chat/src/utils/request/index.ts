@@ -86,7 +86,7 @@ function http<T = any>({
 
   beforeRequest?.()
 
-  method = method || 'GET'
+  method = (method || 'GET').toUpperCase()
 
   const params = Object.assign(typeof data === 'function' ? data() : (data ?? {}), {})
 
@@ -98,11 +98,22 @@ function http<T = any>({
     })
   }
 
-  return method === 'GET'
-    ? request.get(url, { params, signal, onDownloadProgress }).then(successHandler, failHandler)
-    : request
-        .post(url, params, { headers, signal, onDownloadProgress })
-        .then(successHandler, failHandler)
+  if (method === 'GET') {
+    return request
+      .request({ url, method, params, signal, onDownloadProgress })
+      .then(successHandler, failHandler)
+  }
+
+  // DELETE 通常不携带 body，这里把参数放到 query 上（若无参数则为空）。
+  if (method === 'DELETE') {
+    return request
+      .request({ url, method, params, headers, signal, onDownloadProgress })
+      .then(successHandler, failHandler)
+  }
+
+  return request
+    .request({ url, method, data: params, headers, signal, onDownloadProgress })
+    .then(successHandler, failHandler)
 }
 
 export function get<T = any>({
@@ -129,6 +140,50 @@ export function post<T = any>({
   url,
   data,
   method = 'POST',
+  headers,
+  onDownloadProgress,
+  signal,
+  beforeRequest,
+  afterRequest,
+}: HttpOption): Promise<Response<T>> {
+  return http<T>({
+    url,
+    method,
+    data,
+    headers,
+    onDownloadProgress,
+    signal,
+    beforeRequest,
+    afterRequest,
+  })
+}
+
+export function patch<T = any>({
+  url,
+  data,
+  method = 'PATCH',
+  headers,
+  onDownloadProgress,
+  signal,
+  beforeRequest,
+  afterRequest,
+}: HttpOption): Promise<Response<T>> {
+  return http<T>({
+    url,
+    method,
+    data,
+    headers,
+    onDownloadProgress,
+    signal,
+    beforeRequest,
+    afterRequest,
+  })
+}
+
+export function del<T = any>({
+  url,
+  data,
+  method = 'DELETE',
   headers,
   onDownloadProgress,
   signal,

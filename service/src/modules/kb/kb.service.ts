@@ -703,4 +703,29 @@ export class KbService {
 
     return { success: true };
   }
+
+  async renameFile(userId: number, fileId: number, body: { displayName: string }) {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    const displayName = this.toTrimmedString((body as any)?.displayName);
+    if (!displayName) throw new BadRequestException('文件名不能为空');
+    if (displayName.length > 255) throw new BadRequestException('文件名过长');
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+
+    record.displayName = displayName;
+    const saved = await this.pdfRepo.save(record);
+
+    return {
+      id: saved.id,
+      folderId: saved.folderId,
+      displayName: saved.displayName,
+      originalName: saved.originalName,
+      sizeBytes: this.toNumber(saved.sizeBytes, 0),
+      createdAt: saved.createdAt ? new Date(saved.createdAt).toISOString() : '',
+    };
+  }
 }
