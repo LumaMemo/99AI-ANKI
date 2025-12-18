@@ -59,6 +59,12 @@ export class KbController {
     return this.kbService.getFileSignedUrl(userId, Number(id));
   }
 
+  @Delete('files/:id')
+  async deleteFile(@Req() req: any, @Param('id') id: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.deleteFile(userId, Number(id));
+  }
+
   @Post('files/upload')
   @UseInterceptors(
     FileInterceptor('file', {

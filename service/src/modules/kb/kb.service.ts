@@ -638,4 +638,69 @@ export class KbService {
 
     return { url, expiresAt };
   }
+
+  async deleteFile(userId: number, fileId: number): Promise<{ success: boolean }> {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    // 删除强依赖 COS
+    await this.getKbCosConfigOrThrow();
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+    if (!record.cosKey) throw new InternalServerErrorException('文件 COS Key 缺失');
+    if (!record.cosBucket) throw new InternalServerErrorException('文件 COS Bucket 缺失');
+    if (!record.cosRegion) throw new InternalServerErrorException('文件 COS Region 缺失');
+
+    const sizeBytes = this.toNumber(record.sizeBytes, 0);
+
+    // 1) 标记 deleting
+    record.status = 2;
+    await this.pdfRepo.save(record);
+
+    // 2) 删除 COS 对象
+    const cfg = await this.getKbCosConfigOrThrow();
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+      FileParallelLimit: 10,
+    });
+
+    try {
+      await new Promise((resolve, reject) => {
+        cos.deleteObject(
+          {
+            Bucket: removeSpecialCharacters(record.cosBucket),
+            Region: removeSpecialCharacters(record.cosRegion),
+            Key: record.cosKey,
+          },
+          (err, data) => {
+            if (err) return reject(err);
+            return resolve(data);
+          },
+        );
+      });
+    } catch (e: any) {
+      // 保持 deleting 状态，便于后续重试/人工修复
+      throw new InternalServerErrorException(`删除 COS 对象失败：${e?.message || '未知错误'}`);
+    }
+
+    // 3) 标记 deleted
+    record.status = 3;
+    await this.pdfRepo.save(record);
+
+    // 4) usedBytes -= sizeBytes（不低于 0）
+    if (sizeBytes > 0) {
+      await this.usageRepo
+        .createQueryBuilder()
+        .update(KbUserUsageEntity)
+        .set({ usedBytes: () => 'GREATEST(usedBytes - :delta, 0)' })
+        .where('userId = :userId', { userId })
+        .setParameters({ delta: sizeBytes })
+        .execute();
+    }
+
+    return { success: true };
+  }
 }
