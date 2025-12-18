@@ -14,6 +14,9 @@ import { ChatGroupEntity } from '../chatGroup/chatGroup.entity';
 import { ChatLogEntity } from '../chatLog/chatLog.entity';
 import { CramiEntity } from '../crami/crami.entity';
 import { CramiPackageEntity } from '../crami/cramiPackage.entity';
+import { KbFolderEntity } from '../kb/kbFolder.entity';
+import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { KbUserUsageEntity } from '../kb/kbUserUsage.entity';
 import { ConfigEntity } from '../globalConfig/config.entity';
 import { ModelsEntity } from '../models/models.entity';
 import { OrderEntity } from '../order/order.entity';
@@ -45,6 +48,9 @@ import { VerificationEntity } from '../verification/verification.entity';
             AutoReplyEntity,
             CramiEntity,
             CramiPackageEntity,
+            KbFolderEntity,
+            KbPdfEntity,
+            KbUserUsageEntity,
             BadWordsEntity,
             ChatGroupEntity,
             VerificationEntity,

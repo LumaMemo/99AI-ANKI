@@ -41,4 +41,11 @@ export class CramiPackageEntity extends BaseEntity {
 
   @Column({ comment: '套餐包含的应用分类列表', default: '', nullable: true })
   appCats: string;
+
+  @Column({
+    comment: '知识库配额(字节)',
+    type: 'bigint',
+    default: 0,
+  })
+  kbQuotaBytes: number;
 }
