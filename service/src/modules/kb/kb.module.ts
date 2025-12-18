@@ -6,10 +6,20 @@ import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 
 import { KbController } from './kb.controller';
 import { KbService } from './kb.service';
+import { KbFolderEntity } from './kbFolder.entity';
+import { KbPdfEntity } from './kbPdf.entity';
 import { KbUserUsageEntity } from './kbUserUsage.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserBalanceEntity, CramiPackageEntity, KbUserUsageEntity])],
+  imports: [
+    TypeOrmModule.forFeature([
+      UserBalanceEntity,
+      CramiPackageEntity,
+      KbUserUsageEntity,
+      KbFolderEntity,
+      KbPdfEntity,
+    ]),
+  ],
   controllers: [KbController],
   providers: [KbService],
 })

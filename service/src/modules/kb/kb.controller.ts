@@ -1,7 +1,9 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
 import { KbFileListResponseDto } from './dto/kbFileList.dto';
+import { KbFolderCreateDto } from './dto/kbFolderCreate.dto';
+import { KbFolderRenameDto } from './dto/kbFolderRename.dto';
 import { KbFolderTreeNodeDto } from './dto/kbFolderTree.dto';
 import { KbQuotaResponseDto } from './dto/kbQuota.dto';
 import { KbService } from './kb.service';
@@ -18,12 +20,27 @@ export class KbController {
   }
 
   @Get('folders/tree')
-  foldersTree(): KbFolderTreeNodeDto {
-    return {
-      id: 0,
-      name: '根目录',
-      children: [],
-    };
+  async foldersTree(@Req() req: any): Promise<KbFolderTreeNodeDto> {
+    const userId = Number(req?.user?.id);
+    return this.kbService.getFoldersTree(userId);
+  }
+
+  @Post('folders')
+  async createFolder(@Req() req: any, @Body() body: KbFolderCreateDto) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.createFolder(userId, body);
+  }
+
+  @Patch('folders/:id')
+  async renameFolder(@Req() req: any, @Param('id') id: string, @Body() body: KbFolderRenameDto) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.renameFolder(userId, Number(id), body);
+  }
+
+  @Delete('folders/:id')
+  async deleteFolder(@Req() req: any, @Param('id') id: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.deleteFolder(userId, Number(id));
   }
 
   @Get('files')
