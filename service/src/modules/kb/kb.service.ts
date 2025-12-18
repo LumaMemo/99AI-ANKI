@@ -591,4 +591,51 @@ export class KbService {
       throw new InternalServerErrorException(`上传到知识库 COS 失败：${e?.message || '未知错误'}`);
     }
   }
+
+  async getFileSignedUrl(userId: number, fileId: number): Promise<{ url: string; expiresAt: number }> {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    const cfg = await this.getKbCosConfigOrThrow();
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+
+    if (!record.cosKey) throw new InternalServerErrorException('文件 COS Key 缺失');
+    if (!record.cosBucket) throw new InternalServerErrorException('文件 COS Bucket 缺失');
+    if (!record.cosRegion) throw new InternalServerErrorException('文件 COS Region 缺失');
+
+    const expiresSeconds = cfg.signedUrlExpiresSeconds;
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresSeconds;
+
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+      FileParallelLimit: 10,
+    });
+
+    const url: string = await new Promise((resolve, reject) => {
+      // Sign=true 返回签名 URL；Expires 单位秒。
+      cos.getObjectUrl(
+        {
+          Bucket: removeSpecialCharacters(record.cosBucket),
+          Region: removeSpecialCharacters(record.cosRegion),
+          Key: record.cosKey,
+          Sign: true,
+          Expires: expiresSeconds,
+        },
+        (err, data) => {
+          if (err) return reject(err);
+          // SDK 返回可能是 string 或 { Url: string }
+          if (typeof data === 'string') return resolve(data);
+          const u = this.toTrimmedString((data as any)?.Url || (data as any)?.url);
+          if (!u) return reject(new Error('COS 返回的签名 URL 为空'));
+          return resolve(u);
+        },
+      );
+    });
+
+    return { url, expiresAt };
+  }
 }

@@ -53,6 +53,12 @@ export class KbController {
     return this.kbService.getFiles(userId, folderId, page, size);
   }
 
+  @Get('files/:id/signed-url')
+  async signedUrl(@Req() req: any, @Param('id') id: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.getFileSignedUrl(userId, Number(id));
+  }
+
   @Post('files/upload')
   @UseInterceptors(
     FileInterceptor('file', {
