@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as TENCENTCOS from 'cos-nodejs-sdk-v5';
+import { extname } from 'path';
 import { Repository } from 'typeorm';
+import { removeSpecialCharacters } from '@/common/utils/removeSpecialCharacters';
 import { CramiPackageEntity } from '../crami/cramiPackage.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 import { UserBalanceEntity } from '../userBalance/userBalance.entity';
@@ -392,5 +395,200 @@ export class KbService {
       })),
       count,
     };
+  }
+
+  private assertPdfUploadFileOrThrow(file: any) {
+    if (!file) throw new BadRequestException('未找到上传文件：请使用 multipart/form-data 的 file 字段');
+    // multer 对 multipart header 的 filename 解析在不同客户端可能出现乱码：
+    // 常见表现是 UTF-8 字节被当作 latin1 解码，导致中文变成“ã°ä¸…”这种。
+    // 这里做一次 latin1 -> utf8 纠正；若本来就是 UTF-8，转换后结果不变或更接近原文。
+    const originalNameRaw = this.toTrimmedString(file?.originalname);
+    const originalName = originalNameRaw
+      ? Buffer.from(originalNameRaw, 'latin1').toString('utf8').trim()
+      : '';
+    if (!originalName) throw new BadRequestException('文件名为空');
+
+    const sizeBytes = this.toNumber(file?.size, 0);
+    if (!sizeBytes || sizeBytes <= 0) throw new BadRequestException('文件为空或大小非法');
+
+    const mimeType = this.toTrimmedString(file?.mimetype);
+    const ext = extname(originalName || '').toLowerCase();
+    if (ext !== '.pdf') throw new BadRequestException('仅允许上传 PDF（文件扩展名必须为 .pdf）');
+    if (mimeType && mimeType !== 'application/pdf') {
+      // 部分浏览器/系统可能给出 application/x-pdf，但这里按“仅允许 PDF”严格处理
+      throw new BadRequestException('仅允许上传 PDF（MIME 类型必须为 application/pdf）');
+    }
+
+    const buffer: Buffer | undefined = file?.buffer;
+    if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 5) {
+      throw new BadRequestException('上传文件读取失败（buffer 为空）');
+    }
+    const magic = buffer.subarray(0, 5).toString('utf8');
+    if (magic !== '%PDF-') throw new BadRequestException('仅允许上传 PDF（文件头校验失败）');
+
+    return {
+      originalName,
+      sizeBytes,
+      mimeType: mimeType || 'application/pdf',
+      buffer,
+    };
+  }
+
+  private normalizeCosPrefix(prefix: string): string {
+    const p = (prefix ?? '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+    return p || DEFAULT_KB_COS_PREFIX;
+  }
+
+  private normalizeFolderPathForCos(path: string): string {
+    const normalized = (path ?? '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+    return normalized || 'root';
+  }
+
+  private sanitizeFileNameForCos(originalName: string): string {
+    // 1) 去掉路径分隔符/控制字符
+    const safe = (originalName ?? '')
+      .trim()
+      .replace(/[\\/]+/g, '-')
+      .replace(/[\u0000-\u001F]/g, '');
+
+    // 2) 强制 .pdf 后缀（避免出现 .pdf.pdf 或无后缀）
+    const lower = safe.toLowerCase();
+    if (lower.endsWith('.pdf')) return safe;
+    return `${safe}.pdf`;
+  }
+
+  private buildCosKey(params: {
+    prefix: string;
+    userId: number;
+    folderPath: string;
+    pdfDisplaySlug: string;
+    fileId: number;
+    originalFileName: string;
+  }): string {
+    const parts = [
+      this.normalizeCosPrefix(params.prefix),
+      String(params.userId),
+      params.folderPath,
+      params.pdfDisplaySlug,
+      String(params.fileId),
+      params.originalFileName,
+    ].filter(Boolean);
+    return parts.join('/');
+  }
+
+  async uploadPdfToCos(userId: number, folderId: number, file: any) {
+    if (!userId) throw new BadRequestException('未登录');
+    const safeFolderId = Number.isFinite(folderId) ? Math.max(0, Math.floor(folderId)) : 0;
+
+    const cfg = await this.getKbCosConfigOrThrow();
+    const { originalName, sizeBytes, mimeType, buffer } = this.assertPdfUploadFileOrThrow(file);
+
+    // 单文件上限（以配置为准）
+    if (sizeBytes > cfg.singlePdfMaxBytes) {
+      throw new BadRequestException(`单文件大小超过上限：最大允许 ${cfg.singlePdfMaxBytes} 字节`);
+    }
+
+    // 配额校验
+    const quota = await this.getQuota(userId);
+    if (sizeBytes > quota.remainingBytes) {
+      throw new BadRequestException('知识库空间不足：剩余配额不足以上传该文件');
+    }
+
+    // folderPath
+    let folderPath = 'root';
+    if (safeFolderId !== 0) {
+      const folder = await this.folderRepo.findOne({ where: { id: safeFolderId, userId } });
+      if (!folder) throw new NotFoundException('目标文件夹不存在');
+      folderPath = this.normalizeFolderPathForCos(folder.path);
+    }
+
+    // displayName：默认取文件名去掉扩展名
+    const displayName = originalName.replace(/\.pdf$/i, '').trim() || 'pdf';
+    const pdfDisplaySlug = this.toPathSegment(displayName) || 'pdf';
+    const originalFileName = this.sanitizeFileNameForCos(originalName);
+
+    // 先落库拿到 fileId，用于生成 cosKey
+    const pending = this.pdfRepo.create({
+      userId,
+      folderId: safeFolderId,
+      displayName,
+      originalName: originalFileName,
+      ext: 'pdf',
+      mimeType,
+      sizeBytes,
+      cosBucket: cfg.bucket,
+      cosRegion: cfg.region,
+      cosKey: '',
+      etag: null,
+      status: 1,
+    });
+
+    const saved = await this.pdfRepo.save(pending);
+
+    const cosKey = this.buildCosKey({
+      prefix: cfg.prefix,
+      userId,
+      folderPath,
+      pdfDisplaySlug,
+      fileId: saved.id,
+      originalFileName,
+    });
+
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+      FileParallelLimit: 10,
+    });
+
+    try {
+      const putResult: any = await new Promise((resolve, reject) => {
+        cos.putObject(
+          {
+            Bucket: removeSpecialCharacters(cfg.bucket),
+            Region: removeSpecialCharacters(cfg.region),
+            Key: cosKey,
+            StorageClass: 'STANDARD',
+            Body: buffer,
+            ContentType: 'application/pdf',
+          },
+          (err, data) => {
+            if (err) return reject(err);
+            return resolve(data);
+          },
+        );
+      });
+
+      const etag = this.toTrimmedString(putResult?.ETag || putResult?.etag);
+
+      saved.cosKey = cosKey;
+      saved.etag = etag || null;
+      await this.pdfRepo.save(saved);
+
+      // usedBytes += sizeBytes（getQuota 已确保 usage 行存在）
+      await this.usageRepo
+        .createQueryBuilder()
+        .update(KbUserUsageEntity)
+        .set({ usedBytes: () => 'usedBytes + :delta' })
+        .where('userId = :userId', { userId })
+        .setParameters({ delta: sizeBytes })
+        .execute();
+
+      return {
+        id: saved.id,
+        folderId: saved.folderId,
+        displayName: saved.displayName,
+        originalName: saved.originalName,
+        sizeBytes: this.toNumber(saved.sizeBytes, 0),
+        createdAt: saved.createdAt ? new Date(saved.createdAt).toISOString() : '',
+      };
+    } catch (e: any) {
+      // 失败兜底：删除占位记录（尽量不污染 DB）
+      try {
+        await this.pdfRepo.delete({ id: saved.id, userId });
+      } catch {
+        // ignore
+      }
+      throw new InternalServerErrorException(`上传到知识库 COS 失败：${e?.message || '未知错误'}`);
+    }
   }
 }

@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { KbFileListResponseDto } from './dto/kbFileList.dto';
 import { KbFolderCreateDto } from './dto/kbFolderCreate.dto';
 import { KbFolderRenameDto } from './dto/kbFolderRename.dto';
@@ -50,5 +51,20 @@ export class KbController {
     const page = Number(query?.page ?? 1);
     const size = Number(query?.size ?? 20);
     return this.kbService.getFiles(userId, folderId, page, size);
+  }
+
+  @Post('files/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // 这里设置的是“硬上限兜底”，实际单文件上限仍以 kbSinglePdfMaxBytes 配置为准（服务端二次校验）。
+      limits: {
+        fileSize: 100 * 1024 * 1024,
+      },
+    }),
+  )
+  async uploadPdf(@Req() req: any, @Query() query: any, @UploadedFile() file: any) {
+    const userId = Number(req?.user?.id);
+    const folderId = Number(query?.folderId ?? 0);
+    return this.kbService.uploadPdfToCos(userId, folderId, file);
   }
 }
