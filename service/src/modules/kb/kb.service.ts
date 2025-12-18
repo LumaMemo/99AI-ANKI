@@ -10,6 +10,7 @@ import { CramiPackageEntity } from '../crami/cramiPackage.entity';
 import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 import { KbFolderCreateDto } from './dto/kbFolderCreate.dto';
 import { KbFolderRenameDto } from './dto/kbFolderRename.dto';
+import { KbFileListResponseDto } from './dto/kbFileList.dto';
 import { KbFolderTreeNodeDto } from './dto/kbFolderTree.dto';
 import { KbQuotaResponseDto } from './dto/kbQuota.dto';
 import { KbFolderEntity } from './kbFolder.entity';
@@ -226,5 +227,40 @@ export class KbService {
 
     await this.folderRepo.delete({ id, userId });
     return { success: true };
+  }
+
+  async getFiles(
+    userId: number,
+    folderId: number,
+    page: number,
+    size: number,
+  ): Promise<KbFileListResponseDto> {
+    const safeFolderId = Number.isFinite(folderId) ? Math.max(0, Math.floor(folderId)) : 0;
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    const safeSizeRaw = Number.isFinite(size) ? Math.floor(size) : 20;
+    const safeSize = Math.min(Math.max(safeSizeRaw, 1), 100);
+
+    const qb = this.pdfRepo
+      .createQueryBuilder('pdf')
+      .where('pdf.userId = :userId', { userId })
+      .andWhere('pdf.folderId = :folderId', { folderId: safeFolderId })
+      .andWhere('pdf.status != :deleted', { deleted: 3 })
+      .orderBy('pdf.createdAt', 'DESC')
+      .skip((safePage - 1) * safeSize)
+      .take(safeSize);
+
+    const [rows, count] = await qb.getManyAndCount();
+
+    return {
+      rows: rows.map((r) => ({
+        id: r.id,
+        folderId: r.folderId,
+        displayName: r.displayName,
+        originalName: r.originalName,
+        sizeBytes: this.toNumber(r.sizeBytes, 0),
+        createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+      })),
+      count,
+    };
   }
 }

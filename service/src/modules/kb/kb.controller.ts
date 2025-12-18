@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
 import { KbFileListResponseDto } from './dto/kbFileList.dto';
@@ -44,10 +44,11 @@ export class KbController {
   }
 
   @Get('files')
-  files(): KbFileListResponseDto {
-    return {
-      rows: [],
-      count: 0,
-    };
+  async files(@Req() req: any, @Query() query: any): Promise<KbFileListResponseDto> {
+    const userId = Number(req?.user?.id);
+    const folderId = Number(query?.folderId ?? 0);
+    const page = Number(query?.page ?? 1);
+    const size = Number(query?.size ?? 20);
+    return this.kbService.getFiles(userId, folderId, page, size);
   }
 }
