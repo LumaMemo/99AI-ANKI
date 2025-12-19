@@ -1,0 +1,78 @@
+name: Deploy to Tencent CVM (Docker Compose)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      - name: Build and package AIWebQuickDeploy
+        shell: bash
+        run: |
+          bash build.sh
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known_hosts
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Rsync AIWebQuickDeploy to server
+        shell: bash
+        run: |
+          rsync -az --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT }}" \
+            --exclude ".env.docker" \
+            --exclude "data/" \
+            --exclude "public/file/" \
+            --exclude "logs/" \
+            ./AIWebQuickDeploy/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/AIWebQuickDeploy/"
+
+      - name: Remote docker compose up
+        shell: bash
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "DEPLOY_PATH='${{ secrets.DEPLOY_PATH }}' bash -s" << 'EOF'
+          set -e
+
+          mkdir -p "$DEPLOY_PATH/AIWebQuickDeploy"
+          cd "$DEPLOY_PATH/AIWebQuickDeploy"
+
+          # First-time safety: ensure persistent dirs exist
+          mkdir -p data/mysql data/redis public/file logs
+
+          # Ensure env file exists (do NOT overwrite if user edited it)
+          if [ ! -f .env.docker ] && [ -f .env.example ]; then
+            cp .env.example .env.docker
+          fi
+
+          sudo docker compose up -d --build
+          sudo docker compose ps
+          EOF
