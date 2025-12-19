@@ -8,6 +8,7 @@ import { ExpandRight, User, VipOne } from '@icon-park/vue-next'
 import type { CSSProperties } from 'vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import List from './List.vue'
+import KnowledgeBaseReadonly from './KnowledgeBaseReadonly.vue'
 
 const useGlobalStore = useGlobalStoreWithOut()
 
@@ -257,8 +258,11 @@ function openSettings(tab?: number) {
             </div>
           </div>
 
-          <div class="flex-1 min-h-0 overflow-hidden">
-            <List />
+          <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <KnowledgeBaseReadonly />
+            <div class="flex-1 min-h-0 overflow-hidden">
+              <List />
+            </div>
           </div>
           <div
             class="p-4 pb-1 py-2 border-t border-[color:var(--glass-border)] flex items-center justify-between text-left w-full"

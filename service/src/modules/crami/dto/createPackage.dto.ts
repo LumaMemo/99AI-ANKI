@@ -74,4 +74,16 @@ export class CreatePackageDto {
   @ApiProperty({ example: '1,2,3', description: '套餐包含的应用分类' })
   @IsOptional()
   appCats?: string;
+
+  @ApiProperty({
+    example: 1073741824,
+    description: '知识库配额(字节)，0 表示不提供/不开放知识库空间',
+    required: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? undefined : Number(value),
+  )
+  @IsNumber({}, { message: '知识库配额必须是number类型' })
+  kbQuotaBytes?: number;
 }

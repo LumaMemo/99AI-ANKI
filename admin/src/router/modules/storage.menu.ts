@@ -42,6 +42,15 @@ const routes: RouteRecordRaw = {
       },
     },
     {
+      path: 'kbCos',
+      name: 'StorageKbCos',
+      component: () => import('@/views/storage/kbCos.vue'),
+      meta: {
+        title: '知识库COS',
+        icon: 'teenyicons:cost-estimate-outline',
+      },
+    },
+    {
       path: 'ali',
       name: 'StorageAli',
       component: () => import('@/views/storage/ali.vue'),
