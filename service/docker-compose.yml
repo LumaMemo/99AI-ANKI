@@ -13,10 +13,10 @@ services:
     #   - "3306:3306"
     environment:
       TZ: Asia/Shanghai
-      MYSQL_ROOT_PASSWORD: '123456'
-      MYSQL_DATABASE: 'chatgpt'
-      MYSQL_USER: 'chatgpt'
-      MYSQL_PASSWORD: '123456'
+      MYSQL_ROOT_PASSWORD: '232323'
+      MYSQL_DATABASE: 'chatanki'
+      MYSQL_USER: 'chatanki'
+      MYSQL_PASSWORD: '232323'
 
   redis:
     image: redis
