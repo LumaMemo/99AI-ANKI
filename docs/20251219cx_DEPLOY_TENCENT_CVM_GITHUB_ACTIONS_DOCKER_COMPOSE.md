@@ -61,7 +61,7 @@ reboot
 ```
 重启后重新 SSH 登录。
 
-### 2.2 配置 SSH 免密（ubuntu 版，推荐）
+### 2.2 配置 SSH 免密（ubuntu 版，推荐），名称id_99ai
 在你本机（Windows PowerShell）生成一对密钥（如果你已有可跳过）：
 ```powershell
 ssh-keygen -t ed25519 -C "ubuntu@99ai"
@@ -74,7 +74,7 @@ ssh-copy-id -p 22 ubuntu@81.69.47.57
 
 测试免密登录：
 ```powershell
-ssh -p 22 ubuntu@81.69.47.57
+ssh -i ~/.ssh/id_99ai -p 22 ubuntu@81.69.47.57
 ```
 
 ### 2.3 禁止密码登录（强烈推荐）
@@ -268,7 +268,7 @@ nano .env.docker
 
 ### 5.3 启动（Compose）
 ```bash
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 
 首次启动建议用下面命令确认 3 个容器都起来了：
@@ -280,12 +280,12 @@ sudo docker compose logs -f --tail=200 99ai
 
 查看运行状态：
 ```bash
-docker compose ps
+sudo docker compose ps
 ```
 
 查看日志：
 ```bash
-docker compose logs -f --tail=200
+sudo docker compose logs -f --tail=200
 ```
 
 ### 5.4 本机回环自测
@@ -340,6 +340,57 @@ sudo systemctl reload nginx
 ### 6.3 申请 HTTPS 证书（Let’s Encrypt）
 确保你的域名 A 记录已解析到这台 CVM 公网 IP。
 
+#### 6.3.1 如果 certbot 报错：no valid A/AAAA records found
+如果你执行 `sudo certbot --nginx -d lumamemo.com` 时出现类似错误：
+
+```text
+no valid A records found for lumamemo.com; no valid AAAA records found for lumamemo.com
+```
+
+这表示：**Let’s Encrypt 在公网 DNS 上查不到你的域名解析**（域名没有配置 A/AAAA 记录，或配置在错误的 DNS 平台/NS 不一致，或还没生效）。
+
+按下面步骤处理：
+
+1) 去你的域名解析平台添加记录（必须）
+- 主机记录：`@`
+- 记录类型：`A`
+- 记录值：你的 CVM 公网 IP
+- TTL：默认即可
+
+（可选）再加一条：
+- 主机记录：`www`
+- 记录类型：`CNAME` 指向 `lumamemo.com`（或 `A` 也指向同一个公网 IP）
+
+2) 检查域名 NS 是否指向你正在修改的解析平台（常见坑）
+- 如果你的域名 NS 指向的是 DNSPod，但你在 Cloudflare/阿里云改解析，那么改了也不会生效。
+- 请确保“域名的 NS”和“你修改解析的地方”是同一家。
+
+3) 在服务器上验证解析是否生效（推荐用公共 DNS，避免缓存）
+```bash
+sudo apt update
+sudo apt -y install dnsutils
+
+dig @1.1.1.1 lumamemo.com A +short
+dig @8.8.8.8 lumamemo.com A +short
+```
+能返回你的公网 IP 就说明解析 OK。
+
+你也可以用系统解析命令快速验证：
+```bash
+getent hosts lumamemo.com
+```
+
+4) 验证 80 端口可访问（certbot http-01 验证依赖）
+```bash
+curl -I http://lumamemo.com
+```
+能返回 `200/301/302` 等响应即可。
+
+5) 重新申请证书
+```bash
+sudo certbot --nginx -d lumamemo.com
+```
+
 ```bash
 sudo apt -y install certbot python3-certbot-nginx
 sudo certbot --nginx -d lumamemo.com
@@ -353,6 +404,12 @@ sudo systemctl status certbot.timer
 ---
 
 ## 7. GitHub Actions：自动同步到 CVM 并重启 Compose
+
+> 关于分支发布：本仓库的部署 workflow 触发条件是 **push 到 `main`**。
+> 所以你完全可以按常见团队习惯开发：在功能分支/修复分支开发 → 提 PR → **合并到 `main`**。
+> 只要 PR 合并发生（merge/squash/rebase 都可以），本质上都会产生一次对 `main` 的 push，因此会自动触发部署。
+>
+> 另外：workflow 也支持在 GitHub 的 `Actions` 页面里手动点击运行（`workflow_dispatch`），用于紧急重发/补发。
 
 目标：你每次 `push main`，GitHub 自动做：
 1) rsync `AIWebQuickDeploy/` 到服务器 `/home/ubuntu/99ai/AIWebQuickDeploy/`
