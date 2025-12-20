@@ -5,9 +5,9 @@ meta:
 
 <script lang="ts" setup>
   import apiConfig from '@/api/modules/config';
-  import type { FormInstance, FormRules } from 'element-plus';
-  import { ElMessage } from 'element-plus';
-  import { computed, onMounted, reactive, ref, watch } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { ElMessage } from 'element-plus';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
   const formInline = reactive({
     payWechatStatus: '',
@@ -25,7 +25,7 @@ meta:
     return {
       payWechatStatus: [{ required: true, trigger: 'change', message: '请选择当前支付开启状态' }],
       payWeChatSecret: [
-        { required: isPayEnabled, trigger: 'blur', message: '请填写支付Secret秘钥' },
+        { required: isPayEnabled, trigger: 'blur', message: '请填写APIv3密钥（非APIv2密钥）' },
       ],
       payWeChatMchId: [{ required: isPayEnabled, trigger: 'blur', message: '请填写商户号' }],
       payWeChatAppId: [{ required: isPayEnabled, trigger: 'blur', message: '请填写AppId' }],
@@ -160,12 +160,15 @@ meta:
         </el-row>
         <el-row>
           <el-col :xs="24" :md="20" :lg="15" :xl="12">
-            <el-form-item label="商户秘钥" prop="payWeChatSecret">
+            <el-form-item label="APIv3密钥" prop="payWeChatSecret">
               <el-input
                 v-model="formInline.payWeChatSecret"
-                placeholder="请填写Secret秘钥"
+                placeholder="请填写APIv3密钥（32位，非APIv2密钥）"
                 clearable
               />
+              <div class="text-xs text-gray-400 mt-1">
+                请在微信商户平台 → 账户中心 → API安全 → APIv3密钥 中设置并获取，注意不是APIv2密钥
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
