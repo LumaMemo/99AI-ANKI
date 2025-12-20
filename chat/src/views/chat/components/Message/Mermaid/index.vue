@@ -5,7 +5,8 @@ import { Copy, Delete, Edit } from '@icon-park/vue-next'
 import mermaid from 'mermaid'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 
 interface Props {
   chatId?: number

@@ -29,7 +29,8 @@ const oldUse4Token = ref(0)
 const newUse4Token = ref(0)
 const oldUseMjToken = ref(0)
 const newUseMjToken = ref(0)
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const isLogin = computed(() => authStore.isLogin)
 const logoPath = computed(() => authStore.globalConfig.clientLogoPath || logo)
 const siteName = authStore.globalConfig?.siteName || 'AIWeb'
@@ -253,7 +254,7 @@ function openSettings(tab?: number) {
                   <ExpandRight size="22" />
                 </button>
                 <!-- 悬停提示 - 展开侧边栏 -->
-                <div v-if="!isMobile" class="tooltip tooltip-right">折叠侧栏</div>
+                <div v-if="!isMobile" class="tooltip tooltip-left">折叠侧栏</div>
               </div>
             </div>
           </div>

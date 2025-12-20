@@ -13,7 +13,8 @@ const ms = message()
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const isLogin = computed(() => authStore.isLogin)
 const collapsed = computed(() => appStore.siderCollapsed)
 // const startX = ref(0)
@@ -33,13 +34,8 @@ watch(isLogin, async (newVal, oldVal) => {
 
 const getMobileClass = computed(() => {
   if (isMobile.value) return ['rounded-none', 'shadow-none']
-  return [
-    'rounded-2xl',
-    'shadow-md',
-    'border',
-    'border-[color:var(--glass-border)]',
-    'bg-transparent',
-  ]
+  // 桌面端：去掉外层“底板框”，避免与内层 glass-card 形成双层框
+  return []
 })
 
 const getPagePaddingClass = computed(() => {

@@ -11,7 +11,8 @@ const onConversation = inject<any>('onConversation')
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const groupSources = computed(() => chatStore.groupList)
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const randomItems = ref()
 const route = useRoute()
 

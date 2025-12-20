@@ -54,7 +54,8 @@ const collapsed = computed(() => appStore.siderCollapsed)
 const chatGroupId = computed(() => chatStore.active)
 const darkMode = computed(() => appStore.theme === 'dark')
 
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const isHovering = ref(false)
 const isMenuOpen = ref(false)
 const activeGroupInfo = computed(() => chatStore.getChatByGroupInfo())
