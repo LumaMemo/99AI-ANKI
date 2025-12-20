@@ -34,4 +34,16 @@ cp -a service/dist/* ./AIWebQuickDeploy/dist
 cp -r admin/dist/* ./AIWebQuickDeploy/public/admin
 cp -r chat/dist/* ./AIWebQuickDeploy/public/chat
 
+# WeChat Official Account domain verification file(s)
+# Place MP_verify_*.txt at the public web root. In this project, it is served from AIWebQuickDeploy/public/chat.
+mkdir -p ./AIWebQuickDeploy/public/chat
+shopt -s nullglob
+verify_files=(./docs/MP_verify_*.txt)
+if [ ${#verify_files[@]} -gt 0 ]; then
+	cp -f "${verify_files[@]}" ./AIWebQuickDeploy/public/chat/
+	echo "已复制微信公众号验证文件: ${verify_files[*]} -> AIWebQuickDeploy/public/chat/"
+else
+	echo "未找到 docs/MP_verify_*.txt，跳过微信公众号验证文件复制"
+fi
+
 echo "打包完成"
