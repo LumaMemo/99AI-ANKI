@@ -46,7 +46,8 @@ interface FormField {
 
 // ============== 组合式函数 ==============
 const ms = message()
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom, isAtBottom, handleScroll } =
   useScroll()
 const { addGroupChat, updateGroupChatSome } = useChat()

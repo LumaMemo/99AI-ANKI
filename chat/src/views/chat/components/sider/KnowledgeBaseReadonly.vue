@@ -36,7 +36,8 @@ interface PdfRow {
 
 const authStore = useAuthStore()
 const isLogin = computed(() => authStore.isLogin)
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const dlg = dialog()
 
 const visible = ref(false)

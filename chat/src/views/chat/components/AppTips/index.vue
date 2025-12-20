@@ -3,7 +3,8 @@ import { fetchQueryOneCatAPI } from '@/api/appStore'
 import SvgIcon from '@/components/common/SvgIcon/index.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { inject, onMounted, ref, watch } from 'vue'
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 
 const appDetail: any = ref(null)
 

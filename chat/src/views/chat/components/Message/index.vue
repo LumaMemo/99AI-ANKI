@@ -63,7 +63,8 @@ interface Emit {
   (ev: 'delete'): void
 }
 
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const globalStore = useGlobalStoreWithOut()
 
 // 获取预览器状态

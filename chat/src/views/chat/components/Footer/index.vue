@@ -105,7 +105,8 @@ const usingDeepThinking = computed({
     chatStore.setUsingDeepThinking(value)
   },
 })
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const usingPlugin = computed(() => chatStore.currentPlugin)
 const isStreamIn = computed(() => {
   return chatStore.isStreamIn !== undefined ? chatStore.isStreamIn : false

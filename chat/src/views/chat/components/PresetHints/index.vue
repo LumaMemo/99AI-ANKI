@@ -7,7 +7,8 @@ import { ref } from 'vue'
 interface Props {
   isHideDefaultPreset: boolean
 }
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 defineProps<Props>()
 const emit = defineEmits<{
   (e: 'click', box: { appId?: number; prompt: any }): void

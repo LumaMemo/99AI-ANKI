@@ -47,7 +47,8 @@ interface AppCat {
 const authStore = useAuthStoreWithout()
 const userBalance = computed(() => authStore.userBalance)
 
-const { isMobile } = useBasicLayout()
+// 聊天模块：将 640–767 也视为移动端（<md）
+const { isSmallMd: isMobile } = useBasicLayout()
 const useGlobalStore = useGlobalStoreWithOut()
 
 const ms = message()
