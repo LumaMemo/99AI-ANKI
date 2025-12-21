@@ -30,6 +30,7 @@ import { FingerprintLogEntity } from '../userBalance/fingerprint.entity';
 import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 import { VerificationEntity } from '../verification/verification.entity';
 import { NoteGenConfigEntity } from '../noteGen/noteGenConfig.entity';
+import { NoteGenJobEntity } from '../noteGen/noteGenJob.entity';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { NoteGenConfigEntity } from '../noteGen/noteGenConfig.entity';
             KbPdfEntity,
             KbUserUsageEntity,
             NoteGenConfigEntity,
+            NoteGenJobEntity,
             BadWordsEntity,
             ChatGroupEntity,
             VerificationEntity,
