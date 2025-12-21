@@ -29,6 +29,7 @@ import { BalanceEntity } from '../userBalance/balance.entity';
 import { FingerprintLogEntity } from '../userBalance/fingerprint.entity';
 import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 import { VerificationEntity } from '../verification/verification.entity';
+import { NoteGenConfigEntity } from '../noteGen/noteGenConfig.entity';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { VerificationEntity } from '../verification/verification.entity';
             KbFolderEntity,
             KbPdfEntity,
             KbUserUsageEntity,
+            NoteGenConfigEntity,
             BadWordsEntity,
             ChatGroupEntity,
             VerificationEntity,
