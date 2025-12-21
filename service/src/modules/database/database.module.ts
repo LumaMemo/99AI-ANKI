@@ -31,6 +31,8 @@ import { UserBalanceEntity } from '../userBalance/userBalance.entity';
 import { VerificationEntity } from '../verification/verification.entity';
 import { NoteGenConfigEntity } from '../noteGen/noteGenConfig.entity';
 import { NoteGenJobEntity } from '../noteGen/noteGenJob.entity';
+import { NoteGenJobStepUsageEntity } from '../noteGen/noteGenJobStepUsage.entity';
+import { NoteGenJobArtifactEntity } from '../noteGen/noteGenJobArtifact.entity';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { NoteGenJobEntity } from '../noteGen/noteGenJob.entity';
             KbUserUsageEntity,
             NoteGenConfigEntity,
             NoteGenJobEntity,
+            NoteGenJobStepUsageEntity,
+            NoteGenJobArtifactEntity,
             BadWordsEntity,
             ChatGroupEntity,
             VerificationEntity,
