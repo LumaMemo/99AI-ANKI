@@ -27,6 +27,7 @@ import { RedisCacheModule } from './modules/redisCache/redisCache.module';
 import { ShareModule } from './modules/share/share.module';
 import { SigninModule } from './modules/signin/signin.module';
 import { SpaModule } from './modules/spa/spa.module';
+import { NoteGenModule } from './modules/noteGen/noteGen.module';
 import { StatisticModule } from './modules/statistic/statistic.module';
 import { TaskModule } from './modules/task/task.module';
 import { UploadModule } from './modules/upload/upload.module';
@@ -97,6 +98,7 @@ import { VerificationModule } from './modules/verification/verification.module';
     ModelsModule,
     ShareModule,
     SpaModule,
+    NoteGenModule,
   ],
   providers: [
     {
