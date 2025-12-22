@@ -6,12 +6,25 @@
 
 ---
 
+## 执行记录
+
+### Step 1: 基础架构与模块注册 (2025-12-22)
+- **完成内容**：
+  - 定义了 `NoteGenJobStatus` 等核心类型于 `noteGen.types.ts`。
+  - 填充了 `CreateNoteGenJobDto`、`AdminUpdateNoteGenConfigDto` 等 DTO。
+  - 创建了 `NoteGenService` 骨架，注入了 4 个核心 Entity Repository。
+  - 创建了 `NoteGenController` (Chat) 和 `AdminNoteGenController` (Admin)，并配置了相应的路由与 Guard。
+  - 在 `AppModule` 中成功注册 `NoteGenModule`。
+- **验证结果**：接口已挂载，受 JWT 保护，返回 `Not implemented` 占位信息。
+
+---
+
 ## 开发路线概览
 
-| 步骤 | 任务名称 | 核心内容 | 验证点 |
-| :--- | :--- | :--- | :--- |
-| **Step 1** | 基础架构与模块注册 | 创建 Module/Service/Controller 骨架并注册 | 接口返回 404 -> 200/401 |
-| **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 |
+| 步骤 | 任务名称 | 核心内容 | 验证点 | 状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Step 1** | 基础架构与模块注册 | 创建 Module/Service/Controller 骨架并注册 | 接口返回 404 -> 200/401 | ✅ 已完成 |
+| **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ⏳ 待开始 |
 | **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId |
 | **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 |
 | **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL |
@@ -35,10 +48,11 @@
 ### 验证脚本
 ```bash
 # 验证 Chat 接口（应返回 401 Unauthorized，证明路由已挂载且受 JWT 保护）
-curl -X GET http://localhost:3000/note-gen/jobs/test-id
+# 注意：99AI 后端所有 API 路由均带有 /api 前缀
+curl -X GET http://localhost:9520/api/note-gen/jobs/test-id
 
 # 验证 Admin 接口（应返回 401 Unauthorized）
-curl -X GET http://localhost:3000/admin/note-gen/config
+curl -X GET http://localhost:9520/api/admin/note-gen/config
 ```
 
 ### 回滚策略
@@ -59,11 +73,11 @@ curl -X GET http://localhost:3000/admin/note-gen/config
 ### 验证脚本
 ```bash
 # 1. 获取当前配置
-curl -X GET http://localhost:3000/admin/note-gen/config \
+curl -X GET http://localhost:9520/api/admin/note-gen/config \
   -H "Authorization: Bearer <ADMIN_JWT>"
 
 # 2. 更新配置
-curl -X PUT http://localhost:3000/admin/note-gen/config \
+curl -X PUT http://localhost:9520/api/admin/note-gen/config \
   -H "Authorization: Bearer <ADMIN_JWT>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -91,7 +105,7 @@ curl -X PUT http://localhost:3000/admin/note-gen/config \
 ### 验证脚本
 ```bash
 # 创建任务
-curl -X POST http://localhost:3000/note-gen/jobs \
+curl -X POST http://localhost:9520/api/note-gen/jobs \
   -H "Authorization: Bearer <USER_JWT>" \
   -H "Content-Type: application/json" \
   -d '{ "kbPdfId": 1, "pageRange": { "mode": "all" } }'
@@ -112,7 +126,7 @@ curl -X POST http://localhost:3000/note-gen/jobs \
 ### 验证脚本
 ```bash
 # 查询任务详情
-curl -X GET http://localhost:3000/note-gen/jobs/<JOB_ID> \
+curl -X GET http://localhost:9520/api/note-gen/jobs/<JOB_ID> \
   -H "Authorization: Bearer <USER_JWT>"
 ```
 
@@ -131,7 +145,7 @@ curl -X GET http://localhost:3000/note-gen/jobs/<JOB_ID> \
 ### 验证脚本
 ```bash
 # 获取签名 URL
-curl -X GET http://localhost:3000/note-gen/jobs/<JOB_ID>/files/markdown-markmap/signed-url \
+curl -X GET http://localhost:9520/api/note-gen/jobs/<JOB_ID>/files/markdown-markmap/signed-url \
   -H "Authorization: Bearer <USER_JWT>"
 ```
 
@@ -149,7 +163,7 @@ curl -X GET http://localhost:3000/note-gen/jobs/<JOB_ID>/files/markdown-markmap/
 ### 验证脚本
 ```bash
 # 管理端查看所有任务
-curl -X GET "http://localhost:3000/admin/note-gen/jobs?page=1&size=10" \
+curl -X GET "http://localhost:9520/api/admin/note-gen/jobs?page=1&size=10" \
   -H "Authorization: Bearer <ADMIN_JWT>"
 ```
 
