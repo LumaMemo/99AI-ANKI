@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import * as TENCENTCOS from 'cos-nodejs-sdk-v5';
+import { removeSpecialCharacters } from '@/common/utils/removeSpecialCharacters';
 import { NoteGenConfigEntity } from './noteGenConfig.entity';
 import { NoteGenJobEntity } from './noteGenJob.entity';
 import { NoteGenJobArtifactEntity } from './noteGenJobArtifact.entity';
@@ -10,6 +12,7 @@ import { NoteGenJobStepUsageEntity } from './noteGenJobStepUsage.entity';
 import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto';
 import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 
 @Injectable()
 export class NoteGenService {
@@ -24,6 +27,7 @@ export class NoteGenService {
     private readonly noteGenJobStepUsageRepo: Repository<NoteGenJobStepUsageEntity>,
     @InjectRepository(KbPdfEntity)
     private readonly kbPdfRepo: Repository<KbPdfEntity>,
+    private readonly globalConfigService: GlobalConfigService,
   ) {}
 
   /**
@@ -139,13 +143,15 @@ export class NoteGenService {
   }
 
   /**
-   * 查询任务详情（Chat 侧）
+   * 查询任务详情（Chat 侧 / Admin 侧）
    */
-  async getJobDetail(jobId: string, userId: number) {
+  async getJobDetail(jobId: string, userId?: number) {
     // 1. 查询任务主表
-    const job = await this.noteGenJobRepo.findOne({
-      where: { jobId, userId },
-    });
+    const where: any = { jobId };
+    if (userId !== undefined) {
+      where.userId = userId;
+    }
+    const job = await this.noteGenJobRepo.findOne({ where });
 
     if (!job) {
       throw new NotFoundException('任务不存在或不属于该用户');
@@ -190,6 +196,87 @@ export class NoteGenService {
     }
 
     return result;
+  }
+
+  /**
+   * 获取产物签名下载 URL
+   */
+  async getArtifactSignedUrl(jobId: string, fileType: string, userId?: number, isAdmin = false) {
+    // 1. 查找 Job
+    const job = await this.noteGenJobRepo.findOne({
+      where: isAdmin ? { jobId } : { jobId, userId },
+    });
+    if (!job) {
+      throw new NotFoundException('任务不存在或不属于该用户');
+    }
+
+    // 2. 校验状态
+    if (job.status !== 'completed') {
+      throw new BadRequestException('任务尚未完成，无法下载产物');
+    }
+
+    // 3. 查找产物
+    const artifact = await this.noteGenJobArtifactRepo.findOne({
+      where: { jobId, type: fileType },
+    });
+    if (!artifact) {
+      throw new NotFoundException('产物不存在');
+    }
+    if (artifact.status !== 'ready') {
+      throw new BadRequestException('产物尚未准备就绪');
+    }
+
+    // 4. 获取 COS 配置 (复用 KB 配置)
+    const rawConfigs = await this.globalConfigService.getConfigs([
+      'kbTencentCosStatus',
+      'kbCosSecretId',
+      'kbCosSecretKey',
+      'kbCosBucket',
+      'kbCosRegion',
+      'kbCosSignedUrlExpiresSeconds',
+    ]);
+
+    const enabled = Number(rawConfigs.kbTencentCosStatus) === 1;
+    if (!enabled) {
+      throw new BadRequestException('知识库腾讯云 COS 未启用');
+    }
+
+    const secretId = rawConfigs.kbCosSecretId;
+    const secretKey = rawConfigs.kbCosSecretKey;
+    const expiresSeconds = Number(rawConfigs.kbCosSignedUrlExpiresSeconds) || 60;
+
+    if (!secretId || !secretKey) {
+      throw new BadRequestException('知识库腾讯云 COS 配置缺失');
+    }
+
+    // 5. 生成签名 URL
+    const cos = new TENCENTCOS({
+      SecretId: secretId,
+      SecretKey: secretKey,
+    });
+
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresSeconds;
+
+    const url: string = await new Promise((resolve, reject) => {
+      cos.getObjectUrl(
+        {
+          Bucket: removeSpecialCharacters(artifact.cosBucket),
+          Region: removeSpecialCharacters(artifact.cosRegion),
+          Key: artifact.cosKey,
+          Sign: true,
+          Expires: expiresSeconds,
+        },
+        (err, data) => {
+          if (err) return reject(err);
+          if (typeof data === 'string') return resolve(data);
+          const u = (data as any)?.Url || (data as any)?.url;
+          if (!u) return reject(new Error('COS 返回的签名 URL 为空'));
+          return resolve(u);
+        },
+      );
+    });
+
+    return { url, expiresAt };
   }
 
   async adminListJobs() {

@@ -20,7 +20,11 @@ export class NoteGenController {
   }
 
   @Get('jobs/:jobId/files/:fileType/signed-url')
-  async getSignedUrl() {
-    return { message: 'Not implemented' };
+  async getSignedUrl(
+    @Param('jobId') jobId: string,
+    @Param('fileType') fileType: string,
+    @Req() req: Request,
+  ) {
+    return this.noteGenService.getArtifactSignedUrl(jobId, fileType, (req.user as any).id);
   }
 }

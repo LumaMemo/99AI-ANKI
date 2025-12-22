@@ -31,12 +31,15 @@ export class AdminNoteGenController {
   }
 
   @Get('jobs/:jobId')
+  @ApiOperation({ summary: '管理端获取任务详情' })
   async getJobDetail(@Param('jobId') jobId: string) {
-    return this.noteGenService.getJobDetail();
+    // 管理端查询不需要传 userId，isAdmin 传 true
+    return this.noteGenService.getJobDetail(jobId, undefined);
   }
 
   @Get('jobs/:jobId/files/:fileType/signed-url')
-  async getSignedUrl() {
-    return { message: 'Not implemented' };
+  @ApiOperation({ summary: '管理端获取产物签名下载 URL' })
+  async getSignedUrl(@Param('jobId') jobId: string, @Param('fileType') fileType: string) {
+    return this.noteGenService.getArtifactSignedUrl(jobId, fileType, undefined, true);
   }
 }

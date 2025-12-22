@@ -16,8 +16,8 @@
 | **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ✅ 已完成 |
 | **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ✅ 已完成 |
 | **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 | ✅ 已完成 |
-| **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL | ⏳ 待开始 |
-| **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 |
+| **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL | ✅ 已完成 |
+| **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 | ⏳ 待开始 |
 
 ---
 
@@ -137,20 +137,35 @@ curl -X GET http://localhost:9520/api/note-gen/jobs/afa36ef0-82e3-405d-964f-25e6
 
 ## Step 5: 产物下载签名 (Shared)
 
+### 描述
+实现 Chat 侧和 Admin 侧获取任务产物（如 Markdown、Word）的腾讯云 COS 签名下载 URL。
+
+### 目标
+确保用户和管理员能够安全地下载已生成的笔记产物，且 URL 具有时效性。
+
 ### 修改代码
 1. **NoteGenService**：实现 `getArtifactSignedUrl()`。
-   - 调用 `KbService` 或 `UploadService` 中的 COS 签名方法。
+   - 注入 `GlobalConfigService` 以读取 `kbCosSecretId` 等配置。
    - 校验 Job 归属权（Chat 侧）或 Admin 权限。
-2. **NoteGenController** & **AdminNoteGenController**：
-   - `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`
-   - `GET /admin/note-gen/jobs/:jobId/files/:fileType/signed-url`
+   - 校验 Job 状态必须为 `completed` 且产物状态为 `ready`。
+   - 调用 `cos-nodejs-sdk-v5` 生成签名 URL。
+2. **NoteGenController**：实现 `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`。
+3. **AdminNoteGenController**：实现 `GET /admin/note-gen/jobs/:jobId/files/:fileType/signed-url`。
 
 ### 验证脚本
 ```bash
-# 获取签名 URL
-curl -X GET http://localhost:9520/api/note-gen/jobs/<JOB_ID>/files/markdown-markmap/signed-url \
+# 获取签名 URL (Chat 侧)
+curl -X GET http://localhost:9520/api/note-gen/jobs/afa36ef0-82e3-405d-964f-25e666f42d8e/files/markdown-markmap/signed-url \
   -H "Authorization: Bearer <USER_JWT>"
+
+# 获取签名 URL (Admin 侧)
+curl -X GET http://localhost:9520/api/admin/note-gen/jobs/afa36ef0-82e3-405d-964f-25e666f42d8e/files/markdown-markmap/signed-url \
+  -H "Authorization: Bearer <ADMIN_JWT>"
 ```
+
+### 回滚策略
+- 移除 `NoteGenService.getArtifactSignedUrl` 实现。
+- 恢复 Controller 中的 `getSignedUrl` 为 `Not implemented` 占位返回。
 
 ---
 
