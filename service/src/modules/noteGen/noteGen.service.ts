@@ -11,6 +11,7 @@ import { NoteGenJobArtifactEntity } from './noteGenJobArtifact.entity';
 import { NoteGenJobStepUsageEntity } from './noteGenJobStepUsage.entity';
 import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto';
 import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
+import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 
@@ -145,7 +146,7 @@ export class NoteGenService {
   /**
    * 查询任务详情（Chat 侧 / Admin 侧）
    */
-  async getJobDetail(jobId: string, userId?: number) {
+  async getJobDetail(jobId: string, userId?: number, includeStepUsage = false) {
     // 1. 查询任务主表
     const where: any = { jobId };
     if (userId !== undefined) {
@@ -160,6 +161,7 @@ export class NoteGenService {
     // 2. 构造基础返回对象
     const result: any = {
       jobId: job.jobId,
+      userId: job.userId,
       kbPdfId: job.kbPdfId,
       status: job.status,
       progressPercent: Number(job.progressPercent),
@@ -170,6 +172,7 @@ export class NoteGenService {
       chargedPoints: job.chargedPoints,
       chargeStatus: job.chargeStatus,
       updatedAt: job.updatedAt,
+      createdAt: job.createdAt,
     };
 
     // 3. 失败/未完成提示
@@ -179,8 +182,8 @@ export class NoteGenService {
       result.userMessage = '任务未完成（可续跑）：已生成部分结果，后续继续不会重复扣费。';
     }
 
-    // 4. 结果文件列表（仅当 status=completed 时返回）
-    if (job.status === 'completed') {
+    // 4. 结果文件列表（仅当 status=completed 时返回，或者管理员查询时返回）
+    if (job.status === 'completed' || userId === undefined) {
       const artifacts = await this.noteGenJobArtifactRepo.find({
         where: { jobId, status: 'ready' },
       });
@@ -193,6 +196,15 @@ export class NoteGenService {
       }));
     } else {
       result.resultFiles = [];
+    }
+
+    // 5. 步骤用量明细（仅管理端详情需要）
+    if (includeStepUsage) {
+      const stepUsages = await this.noteGenJobStepUsageRepo.find({
+        where: { jobId },
+        order: { stepNumber: 'ASC' },
+      });
+      result.stepUsages = stepUsages;
     }
 
     return result;
@@ -279,7 +291,36 @@ export class NoteGenService {
     return { url, expiresAt };
   }
 
-  async adminListJobs() {
-    return { message: 'Not implemented' };
+  /**
+   * 管理端获取任务列表
+   */
+  async adminListJobs(query: AdminQueryNoteGenJobsDto) {
+    const { page = 1, size = 20, status, userId, kbPdfId, jobId } = query;
+
+    const qb = this.noteGenJobRepo.createQueryBuilder('job');
+
+    if (status) {
+      qb.andWhere('job.status = :status', { status });
+    }
+    if (userId) {
+      qb.andWhere('job.userId = :userId', { userId });
+    }
+    if (kbPdfId) {
+      qb.andWhere('job.kbPdfId = :kbPdfId', { kbPdfId });
+    }
+    if (jobId) {
+      qb.andWhere('job.jobId LIKE :jobId', { jobId: `%${jobId}%` });
+    }
+
+    qb.orderBy('job.id', 'DESC');
+    qb.skip((page - 1) * size);
+    qb.take(size);
+
+    const [rows, count] = await qb.getManyAndCount();
+
+    return {
+      rows,
+      count,
+    };
   }
 }

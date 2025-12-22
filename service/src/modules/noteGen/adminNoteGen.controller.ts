@@ -1,7 +1,8 @@
-import { Controller, Get, Put, UseGuards, Param, Body, Req } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, Param, Body, Req, Query } from '@nestjs/common';
 import { AdminAuthGuard } from '@/common/auth/adminAuth.guard';
 import { NoteGenService } from './noteGen.service';
 import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto';
+import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -26,15 +27,15 @@ export class AdminNoteGenController {
 
   @Get('jobs')
   @ApiOperation({ summary: '管理端获取任务列表' })
-  async listJobs() {
-    return this.noteGenService.adminListJobs();
+  async listJobs(@Query() query: AdminQueryNoteGenJobsDto) {
+    return this.noteGenService.adminListJobs(query);
   }
 
   @Get('jobs/:jobId')
   @ApiOperation({ summary: '管理端获取任务详情' })
   async getJobDetail(@Param('jobId') jobId: string) {
-    // 管理端查询不需要传 userId，isAdmin 传 true
-    return this.noteGenService.getJobDetail(jobId, undefined);
+    // 管理端查询不需要传 userId，isAdmin 传 true，且包含步骤用量
+    return this.noteGenService.getJobDetail(jobId, undefined, true);
   }
 
   @Get('jobs/:jobId/files/:fileType/signed-url')

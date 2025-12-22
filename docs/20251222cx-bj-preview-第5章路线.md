@@ -17,7 +17,7 @@
 | **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ✅ 已完成 |
 | **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 | ✅ 已完成 |
 | **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL | ✅ 已完成 |
-| **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 | ⏳ 待开始 |
+| **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 | ✅ 已完成 |
 
 ---
 
@@ -171,19 +171,34 @@ curl -X GET http://localhost:9520/api/admin/note-gen/jobs/afa36ef0-82e3-405d-964
 
 ## Step 6: 任务审计与管理 (Admin)
 
+### 描述
+实现管理端对所有笔记生成任务的审计与管理功能，包括分页列表查询和包含详细步骤用量的任务详情查询。
+
+### 目标
+为管理员提供全量的任务监控能力，支持按用户、状态、PDF ID 等维度筛选，并能查看每个步骤的具体模型消耗和计费情况。
+
 ### 修改代码
-1. **NoteGenService**：实现 `adminListJobs()` 和 `adminGetJobDetail()`。
-   - `adminGetJobDetail` 需包含 `step_usage` 明细。
+1. **NoteGenService**：
+   - 实现 `adminListJobs()`：支持分页和多维度筛选（userId, status, kbPdfId, jobId）。
+   - 增强 `getJobDetail()`：支持 `includeStepUsage` 参数，当为 true 时关联查询 `note_gen_job_step_usage` 表。
 2. **AdminNoteGenController**：
-   - `GET /admin/note-gen/jobs` (分页/筛选)
-   - `GET /admin/note-gen/jobs/:jobId`
+   - 更新 `listJobs`：接入 `AdminQueryNoteGenJobsDto` 查询参数。
+   - 更新 `getJobDetail`：调用 service 并开启 `includeStepUsage`。
 
 ### 验证脚本
 ```bash
-# 管理端查看所有任务
+# 1. 管理端查看任务列表 (分页)
 curl -X GET "http://localhost:9520/api/admin/note-gen/jobs?page=1&size=10" \
   -H "Authorization: Bearer <ADMIN_JWT>"
+
+# 2. 管理端查看任务详情 (含步骤明细)
+curl -X GET "http://localhost:9520/api/admin/note-gen/jobs/afa36ef0-82e3-405d-964f-25e666f42d8e" \
+  -H "Authorization: Bearer <ADMIN_JWT>"
 ```
+
+### 回滚策略
+- 移除 `NoteGenService.adminListJobs` 实现。
+- 恢复 `AdminNoteGenController` 中的方法为占位返回。
 
 ---
 
