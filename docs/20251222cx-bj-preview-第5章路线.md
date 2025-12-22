@@ -17,6 +17,14 @@
   - 在 `AppModule` 中成功注册 `NoteGenModule`。
 - **验证结果**：接口已挂载，受 JWT 保护，返回 `Not implemented` 占位信息。
 
+### Step 2: 管理端配置管理 (Admin) (2025-12-22)
+- **完成内容**：
+  - 在 `NoteGenService` 中实现了 `getActiveConfig` 和 `updateConfig`。
+  - `updateConfig` 采用版本化策略：禁用旧配置，插入新配置并递增 `version`。
+  - 在 `AdminNoteGenController` 中实现了 `GET /admin/note-gen/config` 和 `PUT /admin/note-gen/config`。
+  - 引入了 `express` 的 `Request` 类型以获取当前操作管理员 ID。
+- **验证结果**：可通过 Admin JWT 成功创建并查询配置，数据库中 `version` 字段按预期递增。
+
 ---
 
 ## 开发路线概览
@@ -24,8 +32,8 @@
 | 步骤 | 任务名称 | 核心内容 | 验证点 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
 | **Step 1** | 基础架构与模块注册 | 创建 Module/Service/Controller 骨架并注册 | 接口返回 404 -> 200/401 | ✅ 已完成 |
-| **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ⏳ 待开始 |
-| **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId |
+| **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ✅ 已完成 |
+| **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ⏳ 待开始 |
 | **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 |
 | **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL |
 | **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 |
