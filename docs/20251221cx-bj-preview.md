@@ -14,7 +14,7 @@
 
 ### 1.1 本期范围
 
-- 仅实现“生成笔记（Generate Notes）”，对齐 `pdf_to_anki/src/API_README.md` 的端点 1
+- 仅实现“生成笔记（Generate Notes）”，对齐 `pdf_to_anki/src/api/README.md` 的端点 1
 - 执行步骤：**1,2,3,4,5,8**
 - 任务必须异步：耗时可能数分钟到数小时
 
@@ -499,6 +499,7 @@ Admin 下载（确定版）：
 - **pdf_to_anki Worker（FastAPI）**：仅做流水线计算与 COS I/O；按本章规则写入/更新 `note_gen_job`、`note_gen_job_step_usage`、`note_gen_job_artifact`。
 - **断点续传**：不记录“断点步数”，以“step_usage 成功记录 + 本地/ COS 产物存在性”决定跳过/继续。
 - **不可中断**：Worker 不提供取消/中断接口。
+- **代码结构**：遵循 `src/api/` (接口), `src/core/` (逻辑), `src/services/` (外部服务) 的模块化结构。
 
 ### 6.1 执行范围（本期固定）
 
@@ -702,20 +703,20 @@ Job 错误字段写入（固定）：
 
 为保证“改动最小、可测试”，建议按以下文件顺序改造：
 
-1) `pdf_to_anki/src/api_main.py`
+1) `pdf_to_anki/src/api/main.py`
    - 加鉴权
    - 将 3 个 POST 改为：校验请求体 → 入队/后台任务 → 立即 202
-2) 新增 `pdf_to_anki/src/worker_auth.py`
-   - 只放鉴权依赖/函数
-3) 新增 `pdf_to_anki/src/worker_models.py`
+2) `pdf_to_anki/src/api/auth.py`
+   - 鉴权依赖/函数
+3) 新增 `pdf_to_anki/src/api/models.py`
    - Pydantic 请求体模型
-4) 新增 `pdf_to_anki/src/worker_validation.py`
+4) 新增 `pdf_to_anki/src/core/validation.py`
    - pipelineKey/steps/pageRange 一致性校验
-5) 新增 `pdf_to_anki/src/worker_registry.py`
+5) 新增 `pdf_to_anki/src/core/registry.py`
    - 内存 registry（联调阶段使用；后续可被 DB 取代）
-6) `pdf_to_anki/src/api_runner.py` / `run_steps`
+6) `pdf_to_anki/src/core/runner.py` / `run_steps`
    - 增加“显式工作目录（pipeline/{jobId}）”与“按 configSnapshot 覆盖 env”的桥接
-7) `pdf_to_anki/src/pipeline_config.py`
+7) `pdf_to_anki/src/core/config.py`
    - 支持 jobId 子目录与标准产物名的写入路径
 
 

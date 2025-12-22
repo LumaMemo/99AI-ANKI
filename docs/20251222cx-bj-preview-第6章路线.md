@@ -10,9 +10,9 @@
 
 | 步骤 | 任务名称 | 核心内容 | 验证点 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Step 1** | Worker 基础架构与鉴权 | 实现 `X-Worker-Token` 校验与健康检查 | 401 -> 200 | 待执行 |
+| **Step 1** | Worker 基础架构与鉴权 | 实现 `X-Worker-Token` 校验与健康检查 | 401 -> 200 | ✅ 已完成 |
 | **Step 2** | 任务契约与异步骨架 | 定义请求体，实现 202 Accepted 与后台任务 | 立即返回 202，后台模拟执行 | 待执行 |
-| **Step 3** | 接入真实 Pipeline (本地模式) | 集成 `api_runner` 跑通步骤 1,2,3,4,5,8 | 本地生成中间产物与笔记 | 待执行 |
+| Step 3 | 接入真实 Pipeline (本地模式) | 集成 `core.runner` 跑通步骤 1,2,3,4,5,8 | 本地生成中间产物与笔记 | 待执行 |
 | **Step 4** | 产物生成与固定命名 | 确保生成 Markmap MD 与 Word 文档 | 检查本地文件存在性 | 待执行 |
 | **Step 5** | COS 存储集成 | 实现 PDF 下载与产物/中间件上传 | COS 出现对应文件 | 待执行 |
 | **Step 6** | MySQL 状态同步 | Worker 实时写入 Job/Step/Artifact 表 | 数据库状态随进度更新 | 待执行 |
@@ -20,16 +20,23 @@
 
 ---
 
-## Step 1: Worker 基础架构与鉴权
+## Step 1: Worker 基础架构与鉴权 ✅
 
 ### 步骤目标
 确保 Worker 服务具备基础安全性，仅允许持有正确 Token 的请求访问业务接口。
 
-### 修改代码
-1. **新增** `pdf_to_anki/src/worker_auth.py`：实现 API Key 校验逻辑。
-2. **修改** `pdf_to_anki/src/api_main.py`：
-   - 引入 `worker_auth` 依赖。
-   - 为所有业务接口（除 `/` 和 `/health`）添加 `Depends(verify_token)`。
+### 实施总结
+1. **新增** `pdf_to_anki/src/api/auth.py`：实现了基于 `X-Worker-Token` 请求头的校验逻辑，并从 `.env` 读取 `PDF_TO_ANKI_WORKER_TOKEN`。
+2. **修改** `pdf_to_anki/src/api/main.py`：
+   - 引入 `Depends` 机制。
+   - 将 `generate-notes`, `generate-anki`, `reset-pages` 接口全部接入鉴权。
+3. **环境配置**：在 `.env` 中初始化了 `PDF_TO_ANKI_WORKER_TOKEN=devtoken`。
+
+### 验证结果
+- **健康检查**：`GET /api/pdf-note/health` -> `200 OK` (无需 Token)。
+- **非法访问**：无 Token 或错误 Token -> `401 Unauthorized`。
+- **合法访问**：正确 Token -> `200 OK` (当前模型字段均为可选，故返回 200)。
+- **Token 隔离**：验证了 User JWT 无法通过 Worker 鉴权，确保了内部通信安全性。
 
 ### 验证脚本
 ```bash
@@ -39,15 +46,14 @@ curl -i http://localhost:8000/api/pdf-note/health
 # 2. 验证业务接口（无 Token，应返回 401）
 curl -i -X POST http://localhost:8000/api/pdf-note/generate-notes
 
-# 3. 验证业务接口（带 Token，应返回 422 或 202，取决于 Body）
-# 假设环境变量 PDF_TO_ANKI_WORKER_TOKEN=devtoken
+# 3. 验证业务接口（带 Token，应返回 200/422）
 curl -i -X POST http://localhost:8000/api/pdf-note/generate-notes \
   -H "X-Worker-Token: devtoken" \
   -H "Content-Type: application/json" -d "{}"
 ```
 
 ### 回滚策略
-- 移除 `api_main.py` 中的 `Depends` 校验。
+- 移除 `api/main.py` 中的 `Depends` 校验。
 
 ---
 
@@ -57,9 +63,10 @@ curl -i -X POST http://localhost:8000/api/pdf-note/generate-notes \
 定义 Worker 与 Backend 之间的通讯契约，实现“立即响应、后台处理”的异步模式。
 
 ### 修改代码
-1. **新增** `pdf_to_anki/src/worker_models.py`：定义 `NoteGenRequestDto`（包含 jobId, steps, pdf 等）。
-2. **新增** `pdf_to_anki/src/worker_registry.py`：实现内存状态机，记录 Job 进度。
-3. **修改** `pdf_to_anki/src/api_main.py`：
+1. **新增** `pdf_to_anki/src/api/models.py`：定义 `NoteGenRequestDto`。
+   - **关键字段**：`jobId`, `steps`, `pdf` (含 `cosKey`, `fileName` 等), `resultCosPrefix`。
+2. **新增** `pdf_to_anki/src/core/registry.py`：实现内存状态机，记录 Job 进度。
+3. **修改** `pdf_to_anki/src/api/main.py`：
    - 使用 `BackgroundTasks` 启动模拟任务。
    - 校验 `pipelineKey` 与 `steps` 的匹配性。
 
@@ -89,12 +96,12 @@ curl http://localhost:8000/api/pdf-note/jobs/00000000-0000-0000-0000-00000000000
 ## Step 3: 接入真实 Pipeline (本地模式)
 
 ### 步骤目标
-将现有的 `api_runner.py` 逻辑接入异步任务，实现真实的 PDF 处理流程（暂不涉及 COS）。
+将现有的 `core/runner.py` 逻辑接入异步任务，实现真实的 PDF 处理流程（暂不涉及 COS）。
 
 ### 修改代码
-1. **修改** `pdf_to_anki/src/api_main.py`：在后台任务中调用 `api_runner.run_steps`。
+1. **修改** `pdf_to_anki/src/api/main.py`：在后台任务中调用 `core.runner.run_steps`。
 2. **临时支持**：在请求体中增加 `localPdfPath` 字段，用于本地调试。
-3. **进度更新**：在每步执行完后更新 `worker_registry` 中的 `progressPercent`（按 16.6% 递增）。
+3. **进度更新**：在每步执行完后更新 `core.registry` 中的 `progressPercent`（按 16.6% 递增）。
 
 ### 验证脚本
 ```bash
@@ -117,12 +124,13 @@ curl -i -X POST http://localhost:8000/api/pdf-note/generate-notes \
 ## Step 4: 产物生成与固定命名
 
 ### 步骤目标
-确保 Step 8 执行后，生成的笔记文件符合 99AI-ANKI 的交付要求。
+确保 Step 8 执行后，生成的笔记文件符合 99AI-ANKI 的交付要求，且文件名包含原始 PDF 名称。
 
 ### 修改代码
-1. **修改** `pdf_to_anki/src/run_pipeline.py`：
-   - 确保 Step 8B 生成 `knowledge_base_notes_markmap.md`。
-   - 确保 Step 8C 生成 `knowledge_base_notes.docx`。
+1. **修改** `pdf_to_anki/src/core/pipeline.py`：
+   - 获取原始文件名 `pdf_name = request.pdf.fileName`（去除后缀）。
+   - **Markmap MD**：命名为 `{pdf_name}_knowledge_base_notes_markmap.md`。
+   - **Word 文档**：命名为 `{pdf_name}_knowledge_base_notes.docx`。
 2. **固定路径**：所有产物统一存放在 `work/kb/{userId}/{kbPdfId}/pipeline/{jobId}/`。
 
 ### 验证脚本
