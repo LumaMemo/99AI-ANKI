@@ -15,8 +15,8 @@ export class NoteGenController {
   }
 
   @Get('jobs/:jobId')
-  async getJobDetail(@Param('jobId') jobId: string) {
-    return this.noteGenService.getJobDetail();
+  async getJobDetail(@Param('jobId') jobId: string, @Req() req: Request) {
+    return this.noteGenService.getJobDetail(jobId, (req.user as any).id);
   }
 
   @Get('jobs/:jobId/files/:fileType/signed-url')

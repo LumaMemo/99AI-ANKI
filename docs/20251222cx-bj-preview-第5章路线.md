@@ -4,33 +4,7 @@
 > 
 > 目标：实现 Chat 侧与 Admin 侧的笔记生成任务管理能力。
 
----
 
-## 执行记录
-
-### Step 1: 基础架构与模块注册 (2025-12-22)
-- **完成内容**：
-  - 定义了 `NoteGenJobStatus` 等核心类型于 `noteGen.types.ts`。
-  - 填充了 `CreateNoteGenJobDto`、`AdminUpdateNoteGenConfigDto` 等 DTO。
-  - 创建了 `NoteGenService` 骨架，注入了 4 个核心 Entity Repository。
-  - 创建了 `NoteGenController` (Chat) 和 `AdminNoteGenController` (Admin)，并配置了相应的路由与 Guard。
-  - 在 `AppModule` 中成功注册 `NoteGenModule`。
-- **验证结果**：接口已挂载，受 JWT 保护，返回 `Not implemented` 占位信息。
-
-### Step 2: 管理端配置管理 (Admin) (2025-12-22)
-- **完成内容**：
-  - 在 `NoteGenService` 中实现了 `getActiveConfig` 和 `updateConfig`。
-  - `updateConfig` 采用版本化策略：禁用旧配置，插入新配置并递增 `version`。
-  - 在 `AdminNoteGenController` 中实现了 `GET /admin/note-gen/config` 和 `PUT /admin/note-gen/config`。
-  - 引入了 `express` 的 `Request` 类型以获取当前操作管理员 ID。
-- **验证结果**：可通过 Admin JWT 成功创建并查询配置，数据库中 `version` 字段按预期递增。
-
-### Step 3: 任务创建与幂等 (Chat) (2025-12-22)
-- **完成内容**：
-  - 在 `NoteGenModule` 中注册了 `KbPdfEntity`。
-  - 在 `NoteGenService` 中实现了 `createJob` 逻辑，包含权限校验、配置快照固化和基于 SHA256 的幂等校验。
-  - 在 `NoteGenController` 中开放了 `POST /jobs` 接口。
-- **验证结果**：首次请求成功创建 Job 并返回 UUID，重复请求返回相同的 Job 对象，符合幂等预期。
 
 ---
 
@@ -41,8 +15,8 @@
 | **Step 1** | 基础架构与模块注册 | 创建 Module/Service/Controller 骨架并注册 | 接口返回 404 -> 200/401 | ✅ 已完成 |
 | **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ✅ 已完成 |
 | **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ✅ 已完成 |
-| **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 | ⏳ 待开始 |
-| **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL |
+| **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 | ✅ 已完成 |
+| **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL | ⏳ 待开始 |
 | **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 |
 
 ---
@@ -132,18 +106,32 @@ curl -X POST http://localhost:9520/api/note-gen/jobs \
 
 ## Step 4: 任务详情与进度 (Chat)
 
+### 描述
+实现用户侧查询任务状态、进度及产物的接口。
+
+### 目标
+支持前端轮询任务进度，并在任务完成后展示可下载的产物列表。
+
 ### 修改代码
 1. **NoteGenService**：实现 `getJobDetail()`。
    - 关联查询 `note_gen_job` 和 `note_gen_job_artifact`。
    - 仅当 `status=completed` 时返回 `resultFiles`。
+   - 针对 `failed`/`incomplete` 状态返回友好的 `userMessage`。
 2. **NoteGenController**：`GET /note-gen/jobs/:jobId`。
 
 ### 验证脚本
 ```bash
-# 查询任务详情
-curl -X GET http://localhost:9520/api/note-gen/jobs/<JOB_ID> \
+# 查询任务详情 (使用 Step 3 创建的 JOB_ID)
+curl -X GET http://localhost:9520/api/note-gen/jobs/afa36ef0-82e3-405d-964f-25e666f42d8e \
   -H "Authorization: Bearer <USER_JWT>"
+
+# 预期输出
+# {"code":200,"data":{"jobId":"afa36ef0-82e3-405d-964f-25e666f42d8e","kbPdfId":5,"status":"created","progressPercent":0,"estimatedCostPoints":{"min":0,"max":0},"chargedPoints":0,"chargeStatus":"not_charged","updatedAt":"2025-12-22T13:32:52.970Z","resultFiles":[]},"success":true,"message":"请求成功"}
 ```
+
+### 回滚策略
+- 移除 `NoteGenService.getJobDetail` 实现。
+- 恢复 `NoteGenController` 中的 `getJobDetail` 为 `Not implemented` 占位返回。
 
 ---
 

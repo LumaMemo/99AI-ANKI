@@ -138,8 +138,58 @@ export class NoteGenService {
     return await this.noteGenJobRepo.save(newJob);
   }
 
-  async getJobDetail() {
-    return { message: 'Not implemented' };
+  /**
+   * 查询任务详情（Chat 侧）
+   */
+  async getJobDetail(jobId: string, userId: number) {
+    // 1. 查询任务主表
+    const job = await this.noteGenJobRepo.findOne({
+      where: { jobId, userId },
+    });
+
+    if (!job) {
+      throw new NotFoundException('任务不存在或不属于该用户');
+    }
+
+    // 2. 构造基础返回对象
+    const result: any = {
+      jobId: job.jobId,
+      kbPdfId: job.kbPdfId,
+      status: job.status,
+      progressPercent: Number(job.progressPercent),
+      estimatedCostPoints: {
+        min: job.estimatedCostMinPoints,
+        max: job.estimatedCostMaxPoints,
+      },
+      chargedPoints: job.chargedPoints,
+      chargeStatus: job.chargeStatus,
+      updatedAt: job.updatedAt,
+    };
+
+    // 3. 失败/未完成提示
+    if (job.status === 'failed') {
+      result.userMessage = '任务未完成（可续跑）：不会浪费点数，请稍后重试或稍后再次发起生成。';
+    } else if (job.status === 'incomplete') {
+      result.userMessage = '任务未完成（可续跑）：已生成部分结果，后续继续不会重复扣费。';
+    }
+
+    // 4. 结果文件列表（仅当 status=completed 时返回）
+    if (job.status === 'completed') {
+      const artifacts = await this.noteGenJobArtifactRepo.find({
+        where: { jobId, status: 'ready' },
+      });
+      result.resultFiles = artifacts.map((art) => ({
+        type: art.type,
+        status: art.status,
+        fileName: art.fileName,
+        sizeBytes: Number(art.sizeBytes),
+        updatedAt: art.updatedAt,
+      }));
+    } else {
+      result.resultFiles = [];
+    }
+
+    return result;
   }
 
   async adminListJobs() {
