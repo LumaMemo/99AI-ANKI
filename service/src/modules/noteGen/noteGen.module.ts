@@ -7,6 +7,7 @@ import { NoteGenJobStepUsageEntity } from './noteGenJobStepUsage.entity';
 import { NoteGenService } from './noteGen.service';
 import { NoteGenController } from './noteGen.controller';
 import { AdminNoteGenController } from './adminNoteGen.controller';
+import { KbPdfEntity } from '../kb/kbPdf.entity';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AdminNoteGenController } from './adminNoteGen.controller';
       NoteGenJobEntity,
       NoteGenJobArtifactEntity,
       NoteGenJobStepUsageEntity,
+      KbPdfEntity,
     ]),
   ],
   providers: [NoteGenService],

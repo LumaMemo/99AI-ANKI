@@ -1,6 +1,8 @@
-import { Controller, Get, Post, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards, Param, Body, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from '@/common/auth/jwtAuth.guard';
 import { NoteGenService } from './noteGen.service';
+import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
 
 @Controller('note-gen')
 @UseGuards(JwtAuthGuard)
@@ -8,8 +10,8 @@ export class NoteGenController {
   constructor(private readonly noteGenService: NoteGenService) {}
 
   @Post('jobs')
-  async createJob() {
-    return this.noteGenService.createJob();
+  async createJob(@Body() dto: CreateNoteGenJobDto, @Req() req: Request) {
+    return this.noteGenService.createJob(dto, (req.user as any).id);
   }
 
   @Get('jobs/:jobId')

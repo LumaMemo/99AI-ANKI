@@ -25,6 +25,13 @@
   - 引入了 `express` 的 `Request` 类型以获取当前操作管理员 ID。
 - **验证结果**：可通过 Admin JWT 成功创建并查询配置，数据库中 `version` 字段按预期递增。
 
+### Step 3: 任务创建与幂等 (Chat) (2025-12-22)
+- **完成内容**：
+  - 在 `NoteGenModule` 中注册了 `KbPdfEntity`。
+  - 在 `NoteGenService` 中实现了 `createJob` 逻辑，包含权限校验、配置快照固化和基于 SHA256 的幂等校验。
+  - 在 `NoteGenController` 中开放了 `POST /jobs` 接口。
+- **验证结果**：首次请求成功创建 Job 并返回 UUID，重复请求返回相同的 Job 对象，符合幂等预期。
+
 ---
 
 ## 开发路线概览
@@ -33,8 +40,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **Step 1** | 基础架构与模块注册 | 创建 Module/Service/Controller 骨架并注册 | 接口返回 404 -> 200/401 | ✅ 已完成 |
 | **Step 2** | 管理端配置管理 (Admin) | 实现配置的 GET/PUT，支持版本化快照 | 配置持久化与版本递增 | ✅ 已完成 |
-| **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ⏳ 待开始 |
-| **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 |
+| **Step 3** | 任务创建与幂等 (Chat) | 实现 `POST /note-gen/jobs`，计算幂等键 | 重复请求返回相同 jobId | ✅ 已完成 |
+| **Step 4** | 任务详情与进度 (Chat) | 实现 `GET /note-gen/jobs/:jobId` | 轮询获取状态与进度 | ⏳ 待开始 |
 | **Step 5** | 产物下载签名 (Shared) | 实现 Chat/Admin 的 COS 签名下载接口 | 获取可访问的签名 URL |
 | **Step 6** | 任务审计与管理 (Admin) | 实现管理端列表分页与详情查询 | 管理端全量数据审计 |
 
@@ -112,11 +119,11 @@ curl -X PUT http://localhost:9520/api/admin/note-gen/config \
 
 ### 验证脚本
 ```bash
-# 创建任务
+# 创建任务 (假设 kbPdfId 为 5)
 curl -X POST http://localhost:9520/api/note-gen/jobs \
   -H "Authorization: Bearer <USER_JWT>" \
   -H "Content-Type: application/json" \
-  -d '{ "kbPdfId": 1, "pageRange": { "mode": "all" } }'
+  -d '{ "kbPdfId": 5, "pageRange": { "mode": "all" } }'
 
 # 再次请求（验证幂等性，应返回相同的 jobId）
 ```
