@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 import * as TENCENTCOS from 'cos-nodejs-sdk-v5';
 import { removeSpecialCharacters } from '@/common/utils/removeSpecialCharacters';
 import { NoteGenConfigEntity } from './noteGenConfig.entity';
@@ -17,6 +18,8 @@ import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 
 @Injectable()
 export class NoteGenService {
+  private readonly logger = new Logger(NoteGenService.name);
+
   constructor(
     @InjectRepository(NoteGenConfigEntity)
     private readonly noteGenConfigRepo: Repository<NoteGenConfigEntity>,
@@ -105,6 +108,14 @@ export class NoteGenService {
       where: { userId, idempotencyKey },
     });
     if (existingJob) {
+      // 如果任务已存在但未完成，尝试再次触发 Worker（幂等触发）
+      if (['created', 'failed', 'incomplete'].includes(existingJob.status)) {
+        this.triggerWorker(existingJob).catch((err) => {
+          this.logger.error(
+            `Failed to re-trigger worker for existing job ${existingJob.jobId}: ${err.message}`,
+          );
+        });
+      }
       return existingJob;
     }
 
@@ -140,7 +151,43 @@ export class NoteGenService {
       chargeStatus: 'not_charged',
     });
 
-    return await this.noteGenJobRepo.save(newJob);
+    const savedJob = await this.noteGenJobRepo.save(newJob);
+
+    // 6. 异步触发 Worker
+    this.triggerWorker(savedJob).catch((err) => {
+      this.logger.error(`Failed to trigger worker for job ${jobId}: ${err.message}`, err.stack);
+    });
+
+    return savedJob;
+  }
+
+  /**
+   * 触发 Python Worker 执行任务
+   */
+  private async triggerWorker(job: NoteGenJobEntity) {
+    // 1. 获取 Worker URL
+    const configs = await this.globalConfigService.getConfigs(['noteGenWorkerUrl']);
+    const url = configs?.noteGenWorkerUrl || 'http://127.0.0.1:8000/run';
+
+    this.logger.log(`Triggering worker for job ${job.jobId} at ${url}`);
+
+    // 2. 构造请求体
+    // 注意：Worker 需要 jobId 和 filePath (COS Key)
+    const payload = {
+      job_id: job.jobId,
+      file_path: job.pdfCosKey,
+    };
+
+    // 3. 发送请求 (不等待执行完成，Worker 是异步的)
+    try {
+      const response = await axios.post(url, payload, {
+        timeout: 5000, // 触发请求快进快出
+      });
+      this.logger.log(`Worker triggered successfully for job ${job.jobId}: ${JSON.stringify(response.data)}`);
+    } catch (error) {
+      const msg = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      throw new Error(`Worker trigger failed: ${msg}`);
+    }
   }
 
   /**

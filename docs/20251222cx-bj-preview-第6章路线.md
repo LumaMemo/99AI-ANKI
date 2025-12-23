@@ -15,8 +15,8 @@
 | **Step 3** | 接入真实 Pipeline (本地模式) | 集成 `core.runner` 跑通步骤 1,2,3,4,5,8 | 本地生成中间产物与笔记 | ✅ 已完成 |
 | **Step 3.5** | 异常处理与日志优化 | 增加任务超时机制与 JobId 日志隔离 | 模拟超时与并发日志检查 | ✅ 已完成 |
 | **Step 4** | 产物生成与固定命名 | 确保生成 Markmap MD 与 Word 文档 | 检查本地文件存在性 | ✅ 已完成 |
-| **Step 5** | COS 存储集成 | 实现 PDF 下载与产物/中间件上传 | COS 出现对应文件 | 待执行 |
-| **Step 6** | MySQL 状态同步 | Worker 实时写入 Job/Step/Artifact 表 | 数据库状态随进度更新 | 待执行 |
+| **Step 5** | COS 存储集成 | 实现 PDF 下载与产物/中间件上传 | COS 出现对应文件 | ✅ 已完成 |
+| **Step 6** | MySQL 状态同步 | Worker 实时写入 Job/Step/Artifact 表 | 数据库状态随进度更新 | ✅ 已完成 |
 | **Step 7** | NestJS 触发集成 | NestJS Service 调用 Worker 接口 | 创建任务后 Worker 自动启动 | 待执行 |
 | **Step 8** | 长耗时任务稳定性优化 | 解决 1 小时+ 任务的超时、假死与恢复问题 | 模拟长任务，重启后可断点续传 | 待执行 |
 
@@ -205,43 +205,64 @@ python src/test/test_step4_naming_integration.py
 
 ---
 
-## Step 5: COS 存储集成
+## Step 5: COS 存储集成 ✅
 
 ### 步骤目标
 实现从腾讯云 COS 下载源 PDF，并将处理结果（中间件与最终产物）上传回 COS。
 
-### 修改代码
-1. **新增** `pdf_to_anki/src/cos_client.py`：封装下载与上传逻辑。
-2. **修改** 任务流程：
-   - 执行前：从 `pdf.cosKey` 下载到本地 `source.pdf`。
-   - 执行中/后：将 `pipeline/{jobId}/` 下的文件同步到 `resultCosPrefix`。
+### 实施总结
+1. **新增依赖**：在 `requirements.txt` 中添加了 `cos-python-sdk-v5`。
+2. **配置扩展**：
+   - 在 `core/config.py` 中新增了 `cos_secret_id`, `cos_secret_key`, `cos_region`, `cos_bucket`, `cos_result_prefix` 字段。
+   - 在 `src/.env` 中添加了对应的配置项。
+3. **服务封装**：新增 `services/cos_service.py`，封装了 `download_file`, `upload_file` 和 `upload_directory` (递归上传) 功能。
+4. **流程集成 (对齐知识库设计)**：
+   - 修改 `api/main.py` 中的 `run_actual_pipeline`：
+     - **存储路径优化**：本地与 COS 存储路径均改为以 PDF 为中心（`kbPdfId` 级别），而非 Job 级别。这确保了同一 PDF 的多次处理可以复用中间产物，实现真正的“断点续传”。
+     - **下载阶段**：若本地无 PDF，则根据请求中的 `cosKey` 从 COS 下载到任务目录。
+     - **上传阶段**：任务完成后，将整个任务目录（含中间产物与最终笔记）递归上传到 PDF 所在的 COS 目录（由 `pdf.cosKey` 自动推导）。
 
 ### 验证脚本
-- 使用真实的 COS 凭据运行任务。
-- 登录腾讯云控制台，验证 `resultCosPrefix` 目录下是否出现了 `knowledge_base_notes.docx` 等文件。
+```bash
+# 运行专门的 COS 集成测试脚本（需先在 .env 配置真实凭据）
+python src/test_step5_cos.py
+```
+
+### 回滚策略
+- 移除 `services/cos_service.py`，还原 `api/main.py` 中的下载/上传逻辑。
 
 ---
 
-## Step 6: MySQL 状态同步
+## Step 6: MySQL 状态同步 ✅
 
 ### 步骤目标
 Worker 直接操作 99AI-ANKI 的数据库，实现任务状态、用量明细和产物记录的持久化。
 
-### 修改代码
-1. **新增** `pdf_to_anki/src/db_client.py`：使用 SQLAlchemy 或 Tortoise ORM 连接 MySQL。
-2. **修改** 任务流程：
-   - 开始时：更新 `note_gen_job.status = 'processing'`。
-   - 每步结束：插入 `note_gen_job_step_usage` 记录。
-   - 产物上传后：插入 `note_gen_job_artifact` 记录。
-   - 全部结束：更新 `note_gen_job.status = 'completed'`, `completedAt = NOW()`, `cleanupAt = NOW() + 7d`。
+### 实施总结
+1. **新增** `pdf_to_anki/src/services/db_service.py`：
+   - 实现了 `DBService` 类，支持 `update_job_status`（更新主表）、`upsert_step_usage`（更新步骤用量）和 `upsert_artifact`（更新产物记录）。
+   - 针对 `NOT NULL` 约束进行了容错处理，确保 `errorCode` 等字段在无错误时写入空字符串而非 `NULL`。
+2. **修改** `pdf_to_anki/src/core/config.py`：
+   - 增加了 MySQL 连接配置（`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_DATABASE`）。
+3. **修改** `pdf_to_anki/src/services/llm_client.py`：
+   - 增加了 `accumulated_usage` 追踪机制，用于在每个 Step 结束时获取该步骤的总 Token 消耗和成本。
+4. **修改** `pdf_to_anki/src/core/pipeline.py`：
+   - 在每个 Step 执行前后调用 `db_service` 记录开始/结束时间、用量和状态。
+   - 在 Step 8 产物生成后，自动记录 `markdown-markmap` 和 `word` 产物到数据库。
+5. **修改** `pdf_to_anki/src/api/main.py`：
+   - 在任务开始、进度更新和最终完成/失败时，同步更新数据库状态。
+
+### 验证结果
+- **状态同步**：任务启动后，数据库 `note_gen_job.status` 变为 `processing`。
+- **进度同步**：随着 Step 完成，`progressPercent` 在数据库中实时更新。
+- **用量记录**：`note_gen_job_step_usage` 表成功记录了每个步骤的模型名、Token 数和成本。
+- **产物记录**：任务完成后，`note_gen_job_artifact` 表出现了对应的 MD 和 Word 记录。
+- **容错性**：验证了在无错误情况下，`errorCode` 字段被正确处理为 `''`，解决了 `Column 'errorCode' cannot be null` 的报错。
 
 ### 验证脚本
 ```bash
-# 1. 在 99AI 侧创建一个 Job (status=created)
-# 2. 调用 Worker 处理该 Job
-# 3. 检查数据库
-mysql -u root -p -e "SELECT status, progressPercent FROM note_gen_job WHERE jobId='...';"
-mysql -u root -p -e "SELECT * FROM note_gen_job_step_usage WHERE jobId='...';"
+# 运行测试脚本验证数据库写入逻辑
+D:/ProgramData/miniconda3/envs/aianki/python.exe g:/vscode/anki_learn2/pdf_to_anki/src/test_db_sync.py
 ```
 
 ---

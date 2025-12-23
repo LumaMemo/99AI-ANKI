@@ -130,4 +130,10 @@ export class NoteGenJobEntity extends BaseEntity {
 
   @Column({ comment: '最后错误堆栈', type: 'text', nullable: true })
   lastErrorStack: string;
+
+  @Column({ comment: '总消耗 Tokens', type: 'int', default: 0 })
+  totalTokens: number;
+
+  @Column({ comment: '总上游成本', type: 'decimal', precision: 10, scale: 6, default: 0 })
+  totalProviderCost: number;
 }
