@@ -17,7 +17,7 @@
 | **Step 4** | 产物生成与固定命名 | 确保生成 Markmap MD 与 Word 文档 | 检查本地文件存在性 | ✅ 已完成 |
 | **Step 5** | COS 存储集成 | 实现 PDF 下载与产物/中间件上传 | COS 出现对应文件 | ✅ 已完成 |
 | **Step 6** | MySQL 状态同步 | Worker 实时写入 Job/Step/Artifact 表 | 数据库状态随进度更新 | ✅ 已完成 |
-| **Step 7** | NestJS 触发集成 | NestJS Service 调用 Worker 接口 | 创建任务后 Worker 自动启动 | 待执行 |
+| **Step 7** | NestJS 触发集成 | NestJS Service 调用 Worker 接口 | 创建任务后 Worker 自动启动 | ✅ 已完成 |
 | **Step 8** | 长耗时任务稳定性优化 | 解决 1 小时+ 任务的超时、假死与恢复问题 | 模拟长任务，重启后可断点续传 | 待执行 |
 
 ---
@@ -267,35 +267,30 @@ D:/ProgramData/miniconda3/envs/aianki/python.exe g:/vscode/anki_learn2/pdf_to_an
 
 ---
 
-## Step 7: NestJS 触发集成
+## Step 7: NestJS 触发集成 ✅
 
 ### 步骤目标
 打通 NestJS 后端与 Python Worker 的最后一步：在用户创建任务时自动通知 Worker。
 
-### 修改代码
-1. **修改** `service/src/modules/noteGen/noteGen.service.ts`：
-   - 在 `createJob` 成功落库后，调用 `this.httpService.post(workerUrl, payload)`。
-   - 负载包含 Job 的完整快照。
-2. **配置**：在 `.env` 中添加 `PDF_TO_ANKI_WORKER_URL` 和 `PDF_TO_ANKI_WORKER_TOKEN`。
+### 实施总结
+1. **修改** `99AI-ANKI/service/src/modules/noteGen/noteGenJob.entity.ts`：
+   - 新增 `pdfFileName` 字段，用于固化 PDF 原始文件名。
+2. **修改** `99AI-ANKI/service/src/modules/noteGen/noteGen.service.ts`：
+   - `createJob`：新增 `resultCosPrefix` 生成逻辑（`kb/{userId}/_note_gen/{kbPdfId}/{jobId}/`），并固化 `pdfFileName`。
+   - `triggerWorker`：重构触发逻辑，从简单的 `job_id` 扩展为完整的 `NoteGenRequestDto` 契约，并加入 `X-Worker-Token` 鉴权头。
+   - **配置集成**：支持从 `globalConfig` 读取 `noteGenWorkerUrl` 和 `noteGenWorkerToken`，并提供安全默认值。
+
+### 验证结果
+- **触发成功**：调用 NestJS 创建任务接口后，Worker 日志显示收到请求并开始处理。
+- **契约对齐**：Worker 正确解析了 NestJS 发送的 PDF 信息、配置快照与步骤列表。
+- **鉴权通过**：NestJS 携带的 Token 与 Worker 配置一致，请求未被拦截。
 
 ### 验证脚本
-```bash
-# 使用真实用户 JWT 发起请求
-curl -X POST http://localhost:9520/api/note-gen/jobs \
-  -H "Authorization: Bearer <USER_JWT>" \
-  -H "Content-Type: application/json" \
-  -d '{ "kbPdfId": 5, "pageRange": { "mode": "all" } }'
-
-# 观察 Worker 日志，确认收到请求并开始处理。
-# 观察 Chat 界面或通过 API 轮询，确认进度在自动更新。
-```
-
-### 回滚策略
-- 注释掉 `NoteGenService` 中调用 Worker 的代码。
+见 `test_nestjs_trigger_sim.py`。
 
 ---
 
-## Step 8: 长耗时任务稳定性优化
+## Step 8: 长耗时任务稳定性优化 待执行
 
 ### 步骤目标
 针对 PDF 处理可能耗时 1 小时以上的特性，从全局视角解决 HTTP 超时、进程假死、任务丢失等稳定性问题。

@@ -44,6 +44,9 @@ export class NoteGenJobEntity extends BaseEntity {
   @Column({ comment: 'PDF ETag', length: 128, nullable: true })
   pdfEtag: string;
 
+  @Column({ comment: 'PDF 文件名', length: 255, default: '' })
+  pdfFileName: string;
+
   @Column({ comment: 'PDF 文件大小（字节）', type: 'bigint', default: 0 })
   pdfSizeBytes: number;
 

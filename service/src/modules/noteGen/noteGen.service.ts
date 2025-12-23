@@ -121,6 +121,7 @@ export class NoteGenService {
 
     // 5. 创建新 Job
     const jobId = uuidv4();
+    const resultCosPrefix = `kb/${userId}/_note_gen/${kbPdfId}/${jobId}/`;
     const newJob = this.noteGenJobRepo.create({
       jobId,
       userId,
@@ -134,6 +135,7 @@ export class NoteGenService {
       pdfCosRegion: kbPdf.cosRegion,
       pdfCosKey: kbPdf.cosKey,
       pdfEtag: kbPdf.etag,
+      pdfFileName: kbPdf.originalName || kbPdf.displayName,
       pdfSizeBytes: Number(kbPdf.sizeBytes),
       pageCount: 0, // 后续由 worker 更新
       // Config snapshot
@@ -145,6 +147,8 @@ export class NoteGenService {
       progressPercent: 0,
       // Idempotency
       idempotencyKey,
+      // Storage
+      resultCosPrefix,
       // Charging
       estimatedCostMinPoints: 0,
       estimatedCostMaxPoints: 0,
@@ -165,28 +169,50 @@ export class NoteGenService {
    * 触发 Python Worker 执行任务
    */
   private async triggerWorker(job: NoteGenJobEntity) {
-    // 1. 获取 Worker URL
-    const configs = await this.globalConfigService.getConfigs(['noteGenWorkerUrl']);
-    const url = configs?.noteGenWorkerUrl || 'http://127.0.0.1:8000/run';
+    // 1. 获取 Worker 配置
+    const configs = await this.globalConfigService.getConfigs(['noteGenWorkerUrl', 'noteGenWorkerToken']);
+    const url = configs?.noteGenWorkerUrl || 'http://127.0.0.1:8000/api/pdf-note/generate-notes';
+    const token = configs?.noteGenWorkerToken || 'devtoken';
 
     this.logger.log(`Triggering worker for job ${job.jobId} at ${url}`);
 
-    // 2. 构造请求体
-    // 注意：Worker 需要 jobId 和 filePath (COS Key)
+    // 2. 构造请求体 (NoteGenRequestDto)
     const payload = {
-      job_id: job.jobId,
-      file_path: job.pdfCosKey,
+      jobId: job.jobId,
+      userId: job.userId,
+      kbPdfId: job.kbPdfId,
+      pipelineKey: job.pipelineKey,
+      steps: job.stepsJson,
+      pageRange: job.pageRangeJson,
+      pdf: {
+        cosBucket: job.pdfCosBucket,
+        cosRegion: job.pdfCosRegion,
+        cosKey: job.pdfCosKey,
+        etag: job.pdfEtag,
+        sizeBytes: Number(job.pdfSizeBytes),
+        pageCount: job.pageCount,
+        fileName: job.pdfFileName,
+      },
+      resultCosPrefix: job.resultCosPrefix,
+      configSnapshot: job.configSnapshotJson,
     };
 
     // 3. 发送请求 (不等待执行完成，Worker 是异步的)
     try {
       const response = await axios.post(url, payload, {
-        timeout: 5000, // 触发请求快进快出
+        headers: {
+          'X-Worker-Token': token,
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 触发请求快进快出
       });
-      this.logger.log(`Worker triggered successfully for job ${job.jobId}: ${JSON.stringify(response.data)}`);
+      this.logger.log(
+        `Worker triggered successfully for job ${job.jobId}: ${JSON.stringify(response.data)}`,
+      );
     } catch (error) {
       const msg = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-      throw new Error(`Worker trigger failed: ${msg}`);
+      this.logger.error(`Worker trigger failed for job ${job.jobId}: ${msg}`);
+      // 注意：这里不 throw，避免影响 createJob 的主流程返回，但会记录错误日志
     }
   }
 

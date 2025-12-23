@@ -144,6 +144,7 @@
 - `pdfCosRegion: string`
 - `pdfCosKey: string`
 - `pdfEtag: string`
+- `pdfFileName: string`
 - `pdfSizeBytes: number`（bigint）
 - `pageCount: number`
 
@@ -546,7 +547,8 @@ API 前缀：`/api/pdf-note`
     "cosKey": "kb/123/xxx.pdf",
     "etag": "...",
     "sizeBytes": 123456,
-    "pageCount": 100
+    "pageCount": 100,
+    "fileName": "..."
   },
   "resultCosPrefix": "kb/123/_note_gen/456/<jobId>/",
   "configSnapshot": { "configSchemaVersion": 1, "steps": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {}, "8": {} } }
