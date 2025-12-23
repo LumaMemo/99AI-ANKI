@@ -121,7 +121,12 @@ export class NoteGenService {
 
     // 5. 创建新 Job
     const jobId = uuidv4();
-    const resultCosPrefix = `kb/${userId}/_note_gen/${kbPdfId}/${jobId}/`;
+    // 结果前缀与源 PDF 所在目录保持一致，以便续跑时整体下载
+    const lastSlashIndex = kbPdf.cosKey.lastIndexOf('/');
+    const resultCosPrefix = lastSlashIndex !== -1
+      ? kbPdf.cosKey.substring(0, lastSlashIndex + 1)
+      : '';
+
     const newJob = this.noteGenJobRepo.create({
       jobId,
       userId,

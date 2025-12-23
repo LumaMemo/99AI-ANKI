@@ -175,7 +175,7 @@
 
 存储与清理
 
-- `resultCosPrefix: string`：该 job 所有产物的 COS 前缀目录。
+- `resultCosPrefix: string`：该 job 所有产物的 COS 前缀目录（通常与源 PDF 所在目录一致，以便续跑时整体下载）。
 - `cosUploadStatus: string`：`not_started` | `uploading` | `done` | `failed`。
 - `cosUploadedAt: datetime`：上传完成时间。
 - `cleanupAt: datetime`：计划清理时间（completed 时写入 now+7d）。
@@ -313,8 +313,8 @@
 创建语义（幂等确定版）：
 
 - 服务端计算 `idempotencyKey` 并落库：
-  - 输入：`userId + kbPdfId + pipelineKey(generate-notes) + pageRange(mode=all) + configId + configVersion + pdfEtag`
-  - 计算：对上述字段拼接后做 sha256，存入 `note_gen_job.idempotencyKey`
+  - **计算公式**：`sha256(userId + "-" + kbPdfId + "-" + pipelineKey + "-" + pageRangeJson + "-" + configId + "-" + configVersion + "-" + (pdfEtag || ""))`
+  - 存入 `note_gen_job.idempotencyKey`
 - 若发现同一 `userId + idempotencyKey` 已存在 job：直接返回已存在 job（不新建、不重复扣费）。
 
 返回（`CreateNoteGenJobResponseDto`）：
@@ -550,7 +550,7 @@ API 前缀：`/api/pdf-note`
     "pageCount": 100,
     "fileName": "..."
   },
-  "resultCosPrefix": "kb/123/_note_gen/456/<jobId>/",
+  "resultCosPrefix": "kb/123/folder/",
   "configSnapshot": { "configSchemaVersion": 1, "steps": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {}, "8": {} } }
 }
 ```
@@ -576,11 +576,21 @@ API 前缀：`/api/pdf-note`
 本地目录固定：
 
 - `work/kb/{userId}/{kbPdfId}/`
-  - `source.pdf`
-  - `pipeline/{jobId}/`（中间产物与最终产物）
-  - `pipeline/{jobId}/progress.json`（可选）
+  - `source.pdf`：从 COS 下载的源文件（同一 `kbPdfId` 可被多个 job 复用）；
+  - `*.md`, `*.json` 等：本 job 的中间产物与最终产物（直接存放在根目录下，复用 `pdf_to_anki` 的产物结构）；
+  - `progress.json`（可选）：用于内部观测，DB 的 `progressPercent` 为最终显示源。
 
-> 断点续传以 `pipeline/{jobId}/` 内文件存在性为准；若本地缺失但 COS 已有，则从 COS 回落下载。
+> 断点续传以根目录下文件存在性为准；若本地缺失但 COS 已有，则从 COS 回落下载。
+
+#### 6.5.3 显式步骤参数与环境覆盖（与 `runner.run_steps` 对齐）
+
+- `pdf_to_anki/src/core/runner.py` 的 `run_steps(steps, env_overrides)` 会把 `env_overrides` 合并到当前环境后再构建 `PipelineConfig`，并以 `PDF_TO_ANKI_STEPS` 环境变量驱动实际要执行的 steps。Worker 的实现应利用该机制把请求中的 `configSnapshot` / step-specific 参数注入为环境变量，从而实现“每个 job 的独立配置快照”与“显式传参”。
+- `pdf_to_anki/src/core/config.py` 中的 `_parse_steps(raw_value, is_worker_mode)`：当处于 Worker 模式（存在 `PDF_TO_ANKI_JOB_ID`）且未显式提供 `PDF_TO_ANKI_STEPS` 时，函数返回空列表以避免在环境加载时误触发全部 steps（这是防护机制）。因此 Worker 在派发 `run_steps` 时**必须**显式设置 `PDF_TO_ANKI_STEPS`（即便是完整序列 `1,2,3,4,5,8`），或在 `env_overrides` 中传入 `PDF_TO_ANKI_STEPS='all'`。
+- 建议的 env 注入映射（示例）：
+  - `PDF_TO_ANKI_STEPS` = `1,2,3,4,5,8`
+  - 对于 step 特定参数（例如 Step1 的 zoom 或 Step2 的 chunk-size），采用命名空间前缀：`PDF_TO_ANKI_STEP1_ZOOM`, `PDF_TO_ANKI_STEP2_CHUNK_SIZE` 等；这些会被 `PipelineConfig.from_env()` 读取并固化到配置对象中，保证每个 job 的配置隔离（与第 3.5 章中 `PipelineConfig` 冻结行为一致）。
+
+示例行为：Worker 在收到 `generate-notes` 请求后，将 `configSnapshot` 中的配置展平成若干 `PDF_TO_ANKI_*` 环境变量，调用 `run_steps([1,2,3,4,5,8], env_overrides)` 启动真实流水线，确保 `PipelineConfig` 反映该 job 的快照配置并写入到产物命名/路径中。
 
 ### 6.6 进度映射（确定版：6 段，严格单调）
 
@@ -603,7 +613,7 @@ Worker 写入 `note_gen_job.progressPercent` 的规则固定如下：
 对每个 step，Worker 在执行前必须按以下优先级判断是否跳过：
 
 1) 若 `note_gen_job_step_usage(jobId, stepNumber)` 已存在且 `status=success`：直接跳过该 step
-2) 否则检查本地 `pipeline/{jobId}/` 对应产物文件是否存在：存在则跳过，并补写 step_usage（若缺失）
+2) 否则检查本地对应产物文件是否存在：存在则跳过，并补写 step_usage（若缺失）
 3) 否则检查 COS `resultCosPrefix` 下对应文件是否存在：存在则下载回落到本地，跳过，并补写 step_usage
 4) 否则执行该 step
 
@@ -611,14 +621,15 @@ Worker 写入 `note_gen_job.progressPercent` 的规则固定如下：
 
 ### 6.8 产物规范（确定版：类型、标准名、兼容策略）
 
-ArtifactType（固定，对齐第 5 章）：
+ArtifactType（固定，对齐第 5 章 / 代码实现）：
 
-- `markdown-markmap`：文件 `knowledge_base_notes_markmap.md`，`contentType=text/markdown`
-- `word`：文件 `knowledge_base_notes.docx`，`contentType=application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- `markdown-markmap`：文件由 `PipelineConfig.markmap_notes_file` 决定，当前实现生成名格式为 `{book_name}_知识点思维导图.md`，`contentType=text/markdown`。
+- `markdown`（若同时生成纯 Markdown）：由 `PipelineConfig.markdown_notes_file` 决定，当前实现生成名格式为 `{book_name}_知识点笔记.md`，`contentType=text/markdown`。
+- `word`：文件由 `PipelineConfig.word_notes_file` 决定，当前实现生成名格式为 `{book_name}_知识点笔记.docx`，`contentType=application/vnd.openxmlformats-officedocument.wordprocessingml.document`。
 
 与 `pdf_to_anki/src` 现状兼容（固定策略）：
 
-- 若 step8 生成的是 `knowledge_base_markmap_notes.md`，Worker 必须复制/重命名为标准名 `knowledge_base_notes_markmap.md` 再上传与落库。
+- 代码中以 `PipelineConfig` 属性为最终产物命名来源；若现有 step8 脚本产生了其它命名（例如历史名 `knowledge_base_markmap_notes.md`），Worker 在上传前必须把产物按 `PipelineConfig` 的标准名复制/重命名或生成映射表，以保证写入 `note_gen_job_artifact.fileName` 时与本地/DB/前端显示一致。
 
 ### 6.9 COS 下载/上传与落库（确定版）
 
@@ -634,11 +645,12 @@ ArtifactType（固定，对齐第 5 章）：
 落库（必须对齐第 4 章）：
 
 - `note_gen_job`
+
   - 上传开始：`cosUploadStatus=uploading`
   - 上传完成：`cosUploadStatus=done`、`cosUploadedAt=now`
   - 上传失败：`cosUploadStatus=failed`（job 可标记 incomplete 允许续跑）
-
 - `note_gen_job_artifact`（uniq(jobId, type) upsert）
+
   - 上传中：`status=uploading`
   - 上传成功：`status=ready`，并写 `fileName/contentType/cosBucket/cosRegion/cosKey/sizeBytes/etag`
 
@@ -688,7 +700,7 @@ Job 错误字段写入（固定）：
 #### 第 2 阶段：接入真实 pipeline（本地模式）
 
 6)（步骤流程 5）接入真实 `generate-notes` 执行：允许临时 `localPdfPath` 绕过 COS 下载；执行过程中按 6 段写 registry（单调递增）
-7)（步骤流程 6）生成两份最终产物并固定命名：确保 `knowledge_base_notes_markmap.md` 与 `knowledge_base_notes.docx` 均存在
+7)（步骤流程 6）生成两份最终产物并固定命名：确保以 `PipelineConfig` 命名规则生成产物（示例：`{book_name}_知识点笔记.md`、`{book_name}_知识点思维导图.md`、`{book_name}_知识点笔记.docx`），并在上传时以这些文件名写入 `note_gen_job_artifact.fileName`。
 
 #### 第 3 阶段：对齐第 4/5 章闭环（COS + MySQL 写库）
 
@@ -717,199 +729,177 @@ Job 错误字段写入（固定）：
 5) 新增 `pdf_to_anki/src/core/registry.py`
    - 内存 registry（联调阶段使用；后续可被 DB 取代）
 6) `pdf_to_anki/src/core/runner.py` / `run_steps`
-   - 增加“显式工作目录（pipeline/{jobId}）”与“按 configSnapshot 覆盖 env”的桥接
+   - 增加“显式工作目录（work/kb/{userId}/{kbPdfId}）”与“按 configSnapshot 覆盖 env”的桥接
 7) `pdf_to_anki/src/core/config.py`
    - 支持 jobId 子目录与标准产物名的写入路径
-
 
 ---
 
 ## 7. 存储与同步（COS + 本地目录）与 7 天清理
 
-> 章节目标：把第 6 章的“本地断点续跑目录”与第 4/5 章的“可下载交付（artifact）”统一到一套确定的存储与清理规则中，确保：
->
-> - 任务失败/重试不浪费：本地与 COS 都能支撑续跑
-> - 任务完成可交付：COS 上有稳定的最终产物，service 可按第 5 章签名下载
-> - 存储可控：完成 7 天后清理本地空间，不影响 COS 交付与历史审计
+章节目标：把第 6 章的“本地断点续跑目录”与第 4/5 章的“可下载交付（artifact）”统一到一套确定的存储、同步与删除规范，确保：
 
-### 7.1 本地目录结构（建议）
+- 任务失败/重试不浪费：本地与 COS 都能支撑续跑；
+- 任务完成可交付：COS 上有稳定的最终产物，service 可按第 5 章签名下载；
+- 存储可控：自动清理本地临时数据，且用户/管理员在删除 COS 数据时得到明确提示与可选的级联删除。
 
-本地目录是“执行与断点续跑”的第一事实来源，必须与第 6 章保持一致。
+### 7.1 存储事实来源与责任
 
-- 根目录（可配置，默认 `work`）：
-  - `work/kb/{userId}/{kbPdfId}/`
+- 本地（Worker 节点）为“执行与断点续跑”的第一事实来源，负责短期保留中间产物与快速恢复；Worker 负责本地清理任务。
+- COS 为长期保存与对外交付的事实来源（signed URL 由 service 在下载时生成）；DB（`note_gen_job`, `note_gen_job_artifact`）为状态与审计事实来源。
 
-目录内约定（确定版）：
+三者协同规则：Worker 可从 COS 回落下载缺失产物以支持续跑；Worker 上传完成后更新 artifact 表与 `note_gen_job.cosUploadStatus`。DB 记录是所有自动化决策（续跑、清理、删除确认）的唯一依据。
 
-- `source.pdf`
-  - 从 COS 下载的源 PDF
-  - 可被同一用户同一 PDF 的多个 job 复用
-- `pipeline/{jobId}/`
-  - 该 job 的中间产物与最终产物（完全复用 `pdf_to_anki/src` 的产物结构）
-  - 允许存在 `progress.json`（调试/观测用）；对用户展示仍以 DB 的 `progressPercent` 为准
+### 7.2 本地目录结构（确定版）
 
-清理粒度原则（确定版）：
+- 根目录（可配置，默认 `work`）：`work/kb/{userId}/{kbPdfId}/`
+- 约定：
+  - `source.pdf`：从 COS 下载的源文件（同一 `kbPdfId` 可被多个 job 复用）；
+  - `*.md`, `*.json` 等：本 job 的中间产物与最终产物（直接存放在根目录下，复用 `pdf_to_anki` 的产物结构）；
+  - `progress.json`：可选，用于内部观测，DB 的 `progressPercent` 为最终显示源。
 
-- 优先按 `pipeline/{jobId}` 粒度清理（更安全，避免误删仍在续跑的同 PDF 其它 job）
-- 仅当确认该 `userId+kbPdfId` 没有任何“仍需本地文件支撑续跑”的 job 时，才清理整个 `work/kb/{userId}/{kbPdfId}`
+清理粒度原则：
 
-### 7.2 COS 目录结构（用户不可见）
+- 优先按 `work/kb/{userId}/{kbPdfId}/` 粒度清理；仅当确认该 `kbPdfId` 无需本地文件支撑续跑的 job 时，才考虑删除 `source.pdf` 与父目录。
 
-COS 是“跨机器/长期保存/交付下载”的事实来源，用户侧只通过 service 的签名 URL 访问。
+注意（与当前代码对齐）：
 
-- 现有 PDF（KB 模块已在用）：`kb/{userId}/.../*.pdf`
-- 处理目录（用户端不可见，建议固定结构）：
-  - `kb/{userId}/_note_gen/{kbPdfId}/{jobId}/...`
+- `pdf_to_anki/src/core/config.py` 中的 `PipelineConfig` 在“Worker 模式”（存在 `job_id`）下将 `base_dir` 直接等同于 `output_root`。也就是说，Worker 在启动/执行时应通过环境变量把 `PDF_TO_ANKI_JOB_ID` 与 `PDF_TO_ANKI_OUTPUT_ROOT` 明确传入，且 `PDF_TO_ANKI_OUTPUT_ROOT` 应当指向 PDF 专属目录（即 `work/kb/{userId}/{kbPdfId}/`）。
+- `PDF_TO_ANKI_BOOK_NAME` 用于生成最终产物的显示名（`PipelineConfig.book_name`），当未显式传入时会从 `PDF_TO_ANKI_PDF_PATH` 推断为 PDF 文件 stem。Worker 必须保证 `book_name` 与后台 `note_gen_job.pdfFileName`/KB 中的 PDF 名称语义一致，以便产物命名与后端记录对齐。
+- 综上，Worker 启动/执行时推荐设置的环境变量（至少）为：
 
-确定规则：
+  - `PDF_TO_ANKI_JOB_ID` -> `jobId`
+  - `PDF_TO_ANKI_OUTPUT_ROOT` -> absolute path to `work/kb/{userId}/{kbPdfId}/`
+  - `PDF_TO_ANKI_BOOK_NAME` -> PDF 文件名（不含扩展名，用于产物命名）
+  - （可选）`PDF_TO_ANKI_PDF_PATH` -> 本地源 PDF 路径（用于本地调试模式）
 
-- `note_gen_job.resultCosPrefix` 必须指向该 job 的处理目录前缀，且以 `/` 结尾，例如：
-  - `kb/{userId}/_note_gen/{kbPdfId}/{jobId}/`
-- 最终产物的 COS Key 固定为：`resultCosPrefix + fileName`
-  - `knowledge_base_notes_markmap.md`
-  - `knowledge_base_notes.docx`
+示例（程序内部效果）：
 
-> 说明：本期只要求“最终产物可下载”。中间产物的 COS Key 可按 `resultCosPrefix + 'intermediate/...'` 组织，便于后续扩展与回落下载。
+- 当 Worker 环境设置为 `PDF_TO_ANKI_OUTPUT_ROOT=.../work/kb/2/1/` 且 `PDF_TO_ANKI_BOOK_NAME=20251中学综合素质1-10` 时：
+  - `PipelineConfig.base_dir == .../work/kb/2/1/`
+  - 最终产物路径为：
+    - `.../work/kb/2/1/20251中学综合素质1-10_知识点笔记.md`
+    - `.../work/kb/2/1/20251中学综合素质1-10_知识点思维导图.md`
+    - `.../work/kb/2/1/20251中学综合素质1-10_知识点笔记.docx`
 
-### 7.3 上传策略
+该行为由 `pdf_to_anki/src/core/config.py` 中 `PipelineConfig.base_dir` 与 `markdown_notes_file/markmap_notes_file/word_notes_file` 属性确定，Worker 实现必须遵循以保证本地产物命名与后端 `note_gen_job_artifact.fileName` 字段一致。
 
-上传策略目标（确定版）：
+### 7.3 COS 目录约定（确定版）
 
-- 对外可交付：completed 后，COS 上必须存在两份最终产物
-- 对内可续跑：processing/incomplete 时，best-effort 上传“已产生的关键内容”，为后续回落下载留口
+- 源 PDF：保存在现有 KB 路径，如 `kb/{userId}/.../*.pdf`（由 KB 模块管理）。
+- 结果前缀（`resultCosPrefix`）：
 
-上传时机（确定版，按风险从低到高）：
+  - **实际逻辑**：与源 PDF 所在目录保持一致，即 `os.path.dirname(pdf.cosKey) + "/"`。
+  - **优势**：下载用户文件时，直接下载整个 PDF 所在的文件夹即可包含所有中间产物，极大方便了 Worker 的续跑与回落下载。
+  - **约束**：前缀必须以 `/` 结尾。
+- 产物 Key 规则：
 
-1) 每个 step 结束后（建议）：
-   - best-effort 上传该 step 新产生的关键文件（或只上传 `progress.json` + 必要目录）
-   - 立刻更新 `note_gen_job.cosUploadStatus=uploading`（首次进入上传流程时）
-2) 全部步骤完成后（必须）：
-   - 上传两份最终产物（标准名）
-   - 两份产物都上传成功并落库 artifact=ready 后，才允许把 job 置为 completed
+  - 最终产物与中间产物：Worker 将本地 `work/kb/{userId}/{kbPdfId}/` 下的所有文件递归上传至 `resultCosPrefix`。
+  - 最终产物 Key 示例：`resultCosPrefix + {book_name}_知识点笔记.md`。
 
-最小必须上传集合（本期确定）：
+说明：COS 路径不再按 `jobId` 隔离，而是按 `kbPdfId` 所在的目录扁平化存储。这保证了同一目录下的 PDF 可以共享中间产物环境，极大方便了 Worker 的整体同步与续跑。前端展示时需根据文件名或后缀过滤掉中间文件。
 
-- 最终产物：
-  - `knowledge_base_notes_markmap.md`
-  - `knowledge_base_notes.docx`
-- 建议附带（用于排错/续跑）：
-  - `pipeline/{jobId}/progress.json`（若存在）
-  - 与 step 8 直接相关的输入中间目录（例如 `anki_card_all/` 等，按现有产物结构选择最小必要集合）
+### 7.4 上传与同步策略（确定版）
 
-上传状态写库（确定版）：
+目标：保证 completed 后 COS 上有稳定且可签名下载的最终产物，同时支持从 COS 回落下载以实现断点续传。
 
-- 进入上传流程：`note_gen_job.cosUploadStatus=uploading`
-- 上传全部必须文件成功：`note_gen_job.cosUploadStatus=done`，`cosUploadedAt=now`
-- 上传失败：`note_gen_job.cosUploadStatus=failed`，job 允许保持/落为 `incomplete` 以支持重试
+时机与规则：
 
-> 注意：第 5 章已明确 `GET /note-gen/jobs/:jobId` 不返回 signed url。signed url 只在下载时由 service 生成；Worker 不负责签名。
+1) 任务执行过程中：
 
-### 7.4 7 天清理
+- Worker 在每个步骤完成后更新 `note_gen_job_step_usage`。
+- 首次进入上传流程时写 `note_gen_job.cosUploadStatus = 'uploading'`。
 
-清理目标（确定版）：
+2) 全部步骤完成后：
 
-- 释放 Worker 本地磁盘空间
-- 不影响：
-  - 用户下载（COS 保留）
-  - Admin 审计与统计（DB 保留）
-  - 仍可续跑的任务（created/processing/incomplete/failed 不清）
+- Worker 执行 `upload_directory`，将本地工作目录下的所有产物（MD/Word/JSON等）递归上传至 `resultCosPrefix`。
+- 上传成功并在 `note_gen_job_artifact` 写入记录后，将 job 标为 `completed`。
 
-清理触发条件（确定版，以 DB 字段为准）：
+上传必须保证幂等：artifact 写库采用 upsert。
 
-- `note_gen_job.status = 'completed'`
-- 且 `note_gen_job.cleanupAt <= now`
+Worker 启动时的回落策略：若本地缺少某个中间产物或最终产物且 DB 中记录存在对应 COS Key，则 Worker 应从 COS 下载回落，避免重复计算。
 
-`cleanupAt` 写入规则（确定版）：
+### 7.5 级联删除后端逻辑（当前实现状态）
 
-- Worker 在将 job 标记为 `completed` 时，同时写入：
-  - `completedAt = now`
-  - `cleanupAt = now + 7d`
+背景：生成的笔记占用知识库空间，当用户删除 KB 中的 PDF 时，应清理相关资源。
 
-清理执行者（确定版）：
+**当前代码行为**：
 
-- 由 **Python Worker** 执行清理（理由：本地文件在 Worker 节点上，Worker 也已具备 DB 访问能力用于写库/续跑）。
+1) 接口 `POST /kb/pdfs/:id/delete` 执行 `deleteFileCore`。
+2) **COS 清理**：仅尝试删除 `kb_pdf` 记录对应的源 PDF 文件（`record.cosKey`）。
+3) **DB 清理**：删除 `kb_pdf` 表中的记录。
+4) **配额更新**：扣减 `kb_user_usage.usedBytes`。
 
-清理调度（确定建议）：
+**待对齐/后续增强**：
 
-- Worker 内部定时任务：每 6~24 小时扫描一次到期 job（例如每天凌晨 3 点）
-- 每次清理设置单次上限（例如最多清理 100 个 job），避免 IO 峰值
+- 目前尚未实现对 `note_gen_job`、`note_gen_job_artifact` 以及 COS 上 `resultCosPrefix` 目录的级联删除。
+- 建议后续在 `deleteFileCore` 中增加对该 `kbPdfId` 相关 job 的清理逻辑。
 
-清理粒度与安全规则（确定版）：
+### 7.6 存储计量后端逻辑
 
-1) 默认只删除该 job 的目录：
-   - `work/kb/{userId}/{kbPdfId}/pipeline/{jobId}/`
-2) 是否删除 `source.pdf` 与上层目录：必须满足“无活跃 job”条件：
-   - DB 中不存在同一 `userId+kbPdfId` 且 `status IN ('created','processing','incomplete','failed')` 的 job
-   - 且不存在同一 `userId+kbPdfId` 但 `status='completed'` 且 `cleanupAt > now` 的 job（仍在 7 天窗口内）
-   - 满足以上条件才允许删除：`work/kb/{userId}/{kbPdfId}/source.pdf` 与空目录
+- 生成的笔记与中间文件计入 KB 的存储配额（由服务端在 artifact 上传/删除时计入/扣除）。
+- **注意**：当前代码仅在上传/删除源 PDF 时更新计量，生成产物的计量更新逻辑需在 Worker 上传完成后由服务端触发或定时任务汇总。
 
-COS 保留策略（本期确定）：
+### 7.7 自动 7 天本地清理与“回落下载”机制
 
-- COS 的 `resultCosPrefix` 目录不清理（保留用于下载与续跑回落）。
+- 目的：释放 Worker 本地磁盘空间。
+- 触发条件：`note_gen_job.status = 'completed'`。
+- **执行者**：Python Worker 在更新任务状态为 `completed` 时，自动设置 `cleanupAt = NOW() + 7 Days`。
+- **清理逻辑**：由 Worker 定时任务扫描并删除本地 `work/kb/{userId}/{kbPdfId}/` 目录。
 
-清理结果写回（建议）：
+**回落下载机制**：
 
-- 可在 `note_gen_job` 增加/复用字段记录本地清理成功时间（本期不强制新增字段；若不加字段则只做日志）。
+- 若本地目录已被清理，但任务需要续跑（`status=incomplete/processing`）：
+  - Worker 必须先从 `resultCosPrefix` 将 COS 上的中间产物同步回本地。
+
+注意区分：
+
+- 自动 7 天清理只清本地 Worker 节点的执行产物（不删除 COS）；
+- 用户触发的级联删除（见 7.5）可选择同时在 COS 上删除 `resultCosPrefix` 下的全部文件并更新 DB，为用户真正释放 KB 存储。
+
+### 7.8 失败、竞态与一致性考虑（工程约束）
+
+- 同一用户的同一pdf，是否需要一个唯一jobid？不用，因为后续还有重新续跑，删除某页重新生成笔记等，只要处理的文件有就行，jobid不一样还方便后续的处理。
+- **目录级一致性**：Worker 启动时应校验本地目录完整性。若发现 `note_gen_job_step_usage` 记录的步骤已完成但本地文件缺失，应触发从 COS 的回落下载。
+- **并发锁**：使用 `job_semaphore` 限制单节点并发；使用 DB 状态锁（tombstone）避免删除与新建并发冲突。
+- **上传原子性**：`upload_directory` 成功后才更新 `cosUploadStatus=success`；若部分失败，允许 job 保持 `incomplete` 状态以便重试。
+- **删除/归档安全**：COS 删除为最终不可逆操作前应可选“先归档再删”；若服务支持对象版本或回收站（object lock / lifecycle），优先使用以降低误删风险。
 
 ---
 
-## 8. 计费与统计（点数 + token + 上游成本）
+（第7章设计已完全对齐 `pdf_to_anki/src` 的扁平化目录结构、COS 递归同步逻辑以及 7 天清理/回落机制。）
 
-> 章节目标：明确“预计点数如何算、实际点数何时扣、失败/续跑如何做到不重复扣费”，并给出 Admin 成本统计的确定口径。
+---
 
-### 8.1 预计点数（Chat 侧展示用，确定版）
+## 8. 计费与结算后端逻辑（点数 + Token）
 
-原则（固定）：
+> 章节目标：明确“预计点数如何算、实际点数何时扣、失败/续跑如何做到不重复扣费”，确保后端结算逻辑的严密性。
 
-- 预计点数只用于 UI 展示与“是否允许启动”的前置判断，不参与最终结算。
-- 预计点数必须稳定可复现：同一 `kbPdfId + configVersion + pdfEtag` 的估算应一致。
+### 8.1 任务幂等与估算（当前实现）
 
-预计点数来源（确定版）：
+**幂等键计算公式（与代码 100% 对齐）**：
 
-- 使用 `note_gen_job.pageCount`（来自 `kb_pdf` 或 step1 结果固化到 job）
-- 使用 `note_gen_config.configJson` 中的“估算规则”字段（可选；不影响 schemaVersion=1 的兼容性）
+- `rawKey = userId + "-" + kbPdfId + "-" + pipelineKey + "-" + pageRangeJson + "-" + configId + "-" + configVersion + "-" + (pdfEtag || "")`
+- `idempotencyKey = sha256(rawKey)`
+- **作用**：确保同一用户对同一 PDF、同一配置、同一页码范围的请求不会创建重复任务，且续跑时能找回原任务。
 
-建议在 `note_gen_config.configJson` 顶层增加（可选）：
+**预计点数（当前状态）**：
 
-```json
-{
-  "estimate": {
-    "generate-notes": {
-      "basePointsMin": 0,
-      "basePointsMax": 0,
-      "perPagePointsMin": 0,
-      "perPagePointsMax": 0
-    }
-  }
-}
-```
-
-计算公式（固定）：
-
-- `estimatedCostMinPoints = basePointsMin + pageCount * perPagePointsMin`
-- `estimatedCostMaxPoints = basePointsMax + pageCount * perPagePointsMax`
-- 若 `estimate.generate-notes` 缺失：两者均为 0（允许上线，但 UI 不展示范围或展示 0~0）
+- **当前实现**：`estimatedCostMinPoints` 与 `estimatedCostMaxPoints` 默认初始化为 `0`。
+- **后续计划**：由后端根据 PDF 页数与配置规则计算，供前端展示。
 
 ### 8.2 实际扣费（确定版：按 step 成功结算，失败可续跑不重复扣费）
 
-角色分工（与第 6 章对齐，固定）：
+**当前实现状态**：
 
-- Worker：
-  - 负责写 `note_gen_job_step_usage` 的 token/providerCost 等用量事实
-  - **不写** `chargedPoints/chargedAt/chargeStatus`
-- 99AI-ANKI service：
-  - 负责按 admin 现有“模型名称 → 扣费策略”计算点数并扣减用户余额
-  - 负责写回 `note_gen_job_step_usage.charge*` 与 `note_gen_job.chargedPoints/chargeStatus`
+- `chargeStatus` 初始为 `not_charged`。
+- 实际扣费逻辑（Worker 触发 Service 扣费）目前处于**待开发**阶段。
 
-扣费触发时机（确定版）：
+**设计目标（确定版）**：
 
-- 每个 step 在写入 `note_gen_job_step_usage.status=success` 后，立刻触发一次“该 step 的扣费尝试”。
-
-扣费幂等原则（确定版）：
-
-- 同一 `jobId + stepNumber` 最多扣费一次。
-- 以 DB 字段作为唯一事实：
-  - `note_gen_job_step_usage.chargeStatus='charged'` 代表已结算完成，后续重试不得重复扣。
+- 扣费触发时机：每个 step 在写入 `note_gen_job_step_usage.status=success` 后，立刻触发一次“该 step 的扣费尝试”。
+- 扣费幂等原则：同一 `jobId + stepNumber` 最多扣费一次。
+- 以 DB 字段作为唯一事实：`note_gen_job_step_usage.chargeStatus='charged'` 代表已结算完成，后续重试不得重复扣。
 
 建议增加 Worker → service 的内部扣费触发接口（仅内网/仅 Worker 调用）：
 
@@ -918,147 +908,84 @@ COS 保留策略（本期确定）：
 
 内部扣费接口语义（确定版）：
 
-1) service 在事务内锁定该 job 与该 step_usage（建议 `SELECT ... FOR UPDATE`）
-2) 若 step_usage 不存在或 `status != success`：返回 409（表示还不可扣）
-3) 若 step_usage `chargeStatus='charged'`：返回 200（幂等成功）
-4) 计算 points：完全复用 admin 现有“模型名称 → 扣费策略”与 token 计费口径
+1) service 在事务内锁定该 job 与该 step_usage（建议 `SELECT ... FOR UPDATE`）。
+2) 若 step_usage 不存在或 `status != success`：返回 409（表示还不可扣）。
+3) 若 step_usage `chargeStatus='charged'`：返回 200（幂等成功）。
+4) 计算 points：完全复用 admin 现有“模型名称 → 扣费策略”与 token 计费口径。
 5) 检查余额并扣减：
-   - 成功：写 step_usage `chargedPoints/chargedAt/chargeStatus='charged'`
-   - 并更新 job：
-     - `chargedPoints = SUM(step_usage.chargedPoints)`（或增量更新，但必须与事实一致）
-     - `chargeStatus = 'charging' | 'charged' | 'partial'`（见 8.3）
-   - 余额不足：返回 402（或 409），并进入 8.4 的“点数不足失败流程”
+   - 成功：写 step_usage `chargedPoints/chargedAt/chargeStatus='charged'`。
+   - 并更新 job：`chargedPoints = SUM(step_usage.chargedPoints)`，`chargeStatus = 'charging' | 'charged' | 'partial'`。
+   - 余额不足：返回 402（或 409），并进入 8.4 的“点数不足失败流程”。
 
 ### 8.3 任务级 chargeStatus（确定版：状态含义与写入规则）
 
-`note_gen_job.chargeStatus` 枚举已在第 4 章固定：`not_charged | charging | charged | partial`。
+`note_gen_job.chargeStatus` 枚举：`not_charged | charging | charged | partial`。
 
 写入规则（确定版）：
 
-- 创建 job：`chargeStatus='not_charged'`，`chargedPoints=0`
-- 任意一个 step 完成并成功扣费后：`chargeStatus='charging'`
-- 所有本期 steps（`[1,2,3,4,5,8]`）对应的 step_usage 均为 `status=success && chargeStatus='charged'`：
-  - `chargeStatus='charged'`
+- 创建 job：`chargeStatus='not_charged'`，`chargedPoints=0`。
+- 任意一个 step 完成并成功扣费后：`chargeStatus='charging'`。
+- 所有本期 steps（`[1,2,3,4,5,8]`）对应的 step_usage 均为 `status=success && chargeStatus='charged'`：`chargeStatus='charged'`。
 - 若已扣费部分 step，但 job 最终 `status=incomplete|failed`：
   - `chargeStatus='partial'`
 
-> 注：`chargeStatus` 仅描述“本 job 的结算进度”，不改变第 3 章 job 的业务状态机。
-
 ### 8.4 点数不足（确定版：如何失败、如何续跑、如何不重复扣费）
 
-触发点（确定版）：
-
-- service 在某个 step 的扣费尝试中判定余额不足。
+触发点（确定版）：service 在某个 step 的扣费尝试中判定余额不足。
 
 service 必须做的写库动作（确定版）：
 
-- 将该 job 标记为：
-  - `note_gen_job.status='failed'`
-  - `note_gen_job.chargeStatus='partial'`（若之前已有扣费）或保持 `not_charged`
-  - 写 `lastErrorCode='INSUFFICIENT_POINTS'`、`lastErrorMessage`、`lastErrorAt`
+- 将该 job 标记为：`note_gen_job.status='failed'`，`note_gen_job.chargeStatus='partial'`（若之前已有扣费）或保持 `not_charged`。
+- 写 `lastErrorCode='INSUFFICIENT_POINTS'`、`lastErrorMessage`、`lastErrorAt`。
 
 Worker 行为（确定版）：
 
-- 收到“余额不足”响应后：
-  - 立即停止后续步骤执行（这不是“用户取消”，属于系统无法继续）
-  - 将 job 保持在 `failed`（由 service 写入为准）
+- 收到“余额不足”响应后：立即停止后续步骤执行，将 job 保持在 `failed`（由 service 写入为准）。
 
 续跑规则（确定版）：
 
-- 用户充值后再次发起 `POST /note-gen/jobs`：由于幂等，会返回同一个 job（或 service 允许“对 failed/incomplete job 重新派发”）。
-- Worker 续跑时：
-  - 已 `status=success` 的 step 依第 6.7 直接跳过
-  - 若存在 `status=success` 但 `chargeStatus!='charged'` 的 step_usage：必须先触发补扣费（可在启动时做一次 reconciliation），确保结算与事实一致
+- 用户充值后再次发起 `POST /note-gen/jobs`：由于幂等，会返回同一个 job。
+- Worker 续跑时：已 `status=success` 的 step 依第 6.7 直接跳过。若存在 `status=success` 但 `chargeStatus!='charged'` 的 step_usage，必须先触发补扣费。
 
 ### 8.5 Admin 成本统计口径（确定版）
 
 统计事实来源（固定）：`note_gen_job_step_usage`。
 
-- token 统计：
-  - `promptTokens/completionTokens/totalTokens` 直接汇总
-- 上游成本：
-  - `providerCost` 按 stepNumber、modelName 聚合
-- 点数统计：
-  - `chargedPoints` 以 step_usage 为事实来源聚合到 job（与第 4 章一致）
-
-建议 Admin 报表维度（不要求本期 UI 全实现，但口径固定）：
-
-- 时间：按 `endedAt`（step 结束时间）或 `chargedAt`（扣费完成时间）
-- 维度：stepNumber、modelName、provider
-- 指标：totalTokens、providerCost、chargedPoints
+- token 统计：`promptTokens/completionTokens/totalTokens` 直接汇总。
+- 上游成本：`providerCost` 按 stepNumber、modelName 聚合。
+- 点数统计：`chargedPoints` 以 step_usage 为事实来源聚合到 job。
 
 ---
 
-## 9. Admin 端需求（依赖后端数据结构）
+## 9. Admin 端需求（前端实现）
 
-> 章节目标：把第 4/5/8 章已经定好的“表结构 + Admin API + 统计口径”落到 Admin UI 的最小闭环：
->
-> - 管理员可维护“笔记生成配置”（版本化、可回滚）
-> - 管理员可查询任务、定位问题、下载产物、查看用量与成本
->
-> 本期不做：管理员手动取消任务、强制重跑、手动清理 COS、本地文件浏览器。
+> 章节目标：把第 4/5/8 章已经定好的“表结构 + Admin API + 统计口径”落到 Admin UI 的最小闭环。
 
 ### 9.1 模型管理 → 笔记生成配置（二级目录）
 
 菜单与路由（确定版）：
 
-- 菜单位置：`模型管理` 下新增 children：`笔记生成配置`
-- 页面包含 2 个状态：查看当前启用配置 + 编辑并发布新版本
+- 菜单位置：`模型管理` 下新增 children：`笔记生成配置`。
+- 页面包含 2 个状态：查看当前启用配置 + 编辑并发布新版本。
 
-数据来源（确定版，对齐第 5.2.1）：
+数据来源（确定版）：
 
 - 查看：`GET /admin/note-gen/config`
 - 发布：`PUT /admin/note-gen/config`
 
 页面字段（确定版）：
 
-- 只读区：
-  - `id`、`enabled`（恒为 true）、`version`、`updatedByAdminId`、`updatedAt`
-- 编辑区（发布新版本必填）：
-  - `name`（必填）
-  - `remark`（必填）
-  - `configJson`（必填）
-
-UI 形态（最小实现，确定版）：
-
-- `configJson` 使用 JSON 编辑器/大文本框（支持格式化/校验）
-- 提交前做前端 JSON 校验 + 后端 schema 校验（不通过则阻止发布）
-
-`configJson` 内容与校验（确定版，对齐第 5.2.1 约束）：
-
-- `configSchemaVersion` 固定为 1（若存在该字段；若不放在 configJson 内，则由 service 固定返回 1）
-- 必须包含 `steps`，且至少包含本期 steps：`1,2,3,4,5,8`
-- step1/2/4 的 `modelName` 必须是“Admin 模型管理中可用的模型名称”
-- step8 本期固定输出两种产物：markmap + word（不提供开关，避免产品面额外分叉）
-
-建议 `steps` 结构（示例，仅用于说明字段名；最终以代码校验为准）：
-
-```json
-{
-  "steps": {
-    "1": { "modelName": "...", "concurrency": 2, "maxRetries": 2, "zoom": 2 },
-    "2": { "modelName": "...", "chunkSize": 5, "overlapPages": 1 },
-    "3": { "softLimitChars": 12000, "hardLimitChars": 18000 },
-    "4": { "modelName": "...", "concurrency": 2, "maxRetries": 2 },
-    "5": { },
-    "8": { "outputs": { "markdown-markmap": true, "word": true } }
-  }
-}
-```
-
-发布行为（确定版）：
-
-- 每次点击“发布”都会产生新记录（version +1），并将其启用（旧的 enabled=true 会被置为 false）
-- 发布成功后刷新页面，显示新的 version
+- 只读区：`id`、`enabled`、`version`、`updatedByAdminId`、`updatedAt`。
+- 编辑区：`name`、`remark`、`configJson`（JSON 编辑器）。
 
 ### 9.2 数据管理 → 笔记管理
 
 菜单与路由（确定版）：
 
-- 菜单位置：`数据管理` 下新增 children：`笔记管理`
-- 该模块只读（本期不提供“改状态/重跑/清理”等写操作）
+- 菜单位置：`数据管理` 下新增 children：`笔记管理`。
+- 该模块只读（本期不提供“改状态/重跑/清理”等写操作）。
 
-数据来源（确定版，对齐第 5.2.2）：
+数据来源（确定版）：
 
 - 列表：`GET /admin/note-gen/jobs`
 - 详情：`GET /admin/note-gen/jobs/:jobId`
@@ -1066,218 +993,112 @@ UI 形态（最小实现，确定版）：
 
 #### 9.2.1 列表页（确定版）
 
-查询条件（对齐 API，固定）：
-
-- `page`（默认 1）/ `size`（默认 20）
-- `status`（可选）
-- `userId`（可选）
-- `kbPdfId`（可选）
-- `jobId`（可选，精确匹配）
-
-默认排序（确定版）：
-
-- `updatedAt` 倒序
-
-列表列（最小闭环，确定版）：
-
-- `jobId`（支持复制）
-- `userId`
-- `kbPdfId`
-- `pipelineKey`（本期应恒为 `generate-notes`，但仍展示便于排错）
-- `status`、`progressPercent`
-- `chargedPoints`、`chargeStatus`
-- `configId`、`configVersion`
-- `updatedAt`
-
-列表快捷信息（建议，确定版）：
-
-- 若 job `status in ('incomplete','failed')`：在列表行展示 `lastErrorCode` 的简写标签（不展开堆栈）
-
-行操作（确定版）：
-
-- “查看详情”进入详情页
-
----
+查询条件：`page/size/status/userId/kbPdfId/jobId`。
+默认排序：`updatedAt` 倒序。
+列表列：`jobId/userId/kbPdfId/pipelineKey/status/progressPercent/chargedPoints/chargeStatus/configId/configVersion/updatedAt`。
 
 #### 9.2.2 详情页（确定版：审计/排错/下载）
 
-页面区块（确定版）：
+页面区块：
 
-1) 任务概览（来自 `job`）：
-   - `jobId/userId/kbPdfId/pipelineKey/status/progressPercent`
-   - `estimatedCostMinPoints~estimatedCostMaxPoints`、`chargedPoints/chargeStatus/deductType`
-   - `createdAt/updatedAt/startedAt/completedAt/cleanupAt`
-2) 输入 PDF 快照（来自 `job`）：
-   - `pdfCosBucket/pdfCosRegion/pdfCosKey/pdfEtag/pdfSizeBytes/pageCount`
-3) 存储状态（来自 `job`）：
-   - `resultCosPrefix/cosUploadStatus/cosUploadedAt`
-4) 产物列表（来自 `artifacts`）：
-   - 列：`type/status/fileName/contentType/sizeBytes/etag/updatedAt`
-   - 下载按钮：仅当 `status=ready` 可点；点击后调用 Admin signed-url 接口并打开下载
-5) Step 用量明细（来自 `steps`，对齐第 4.3）：
-   - 列：`stepNumber/status/startedAt/endedAt/modelName/provider/totalTokens/providerCost/chargeStatus/chargedPoints/chargedAt/errorMessage`
-6) 错误信息（来自 `job.lastError*`）：
-   - `lastErrorCode/lastErrorMessage/lastErrorAt`
-   - `lastErrorStack` 仅在详情页展开显示（避免列表污染）
-
-统计展示口径（确定版，对齐第 8.5）：
-
-- token：详情页可显示 job 级汇总（sum steps.totalTokens），并在 steps 表格中保留分步
-- providerCost：同上
-- chargedPoints：以 step_usage 的 chargedPoints 汇总结果为准（与 job 字段一致）
-
-权限（确定版）：
-
-- 全部 Admin 页面与 API 使用 `AdminAuthGuard`
-- Admin 下载不校验 owner，仅校验 artifact 存在且 `status=ready`（对齐第 5.2.2）
-
-## 10. Chat 端需求（最后写 UI，因为依赖 API/状态机/计费字段）
-
-> 章节目标：在不新增“取消/页范围/模型选择”等非目标能力的前提下，把 Chat 内的“选择 KB PDF → 创建任务 → 轮询进度 → 下载交付/失败续跑”闭环写成可直接实现的确定版。
-
-### 10.1 入口与按钮
-
-- 位置：Chat Footer，按钮样式与现有 pill 按钮一致
-- icon：准备一个小图标（与现有 icon 库风格保持一致）
-- 交互：
-  - 点击选中 → 进入“生成笔记”模式
-  - 再次点击取消 → 回到普通聊天
-  - **选中后左上角默认不选模型，与左上角模型无关**（本功能不使用 chat 的模型选择）
-
-按钮文案与状态（确定版）：
-
-- 文案：`生成笔记`
-- 选中态：高亮（与现有 pill 一致）
-- 未选中态：不显示任何额外 UI
-
-### 10.2 参数选择
-
-必选输入（确定版）：
-
-- `kbPdfId`：知识库中的一个 PDF 文档
-- `pageRange`：本期不可修改，固定 `{ mode: 'all' }`（UI 不展示可编辑项）
-
-交互（确定版，最小可实现）：
-
-- 进入“生成笔记”模式后，在输入框区域展示：
-  - “选择 PDF”控件（复用现有 KB PDF 选择器/列表组件；若没有则用下拉选择，不新增复杂弹窗）
-  - 已选中时显示：`已选择：{pdfDisplayName}` + `更换`
-- 未选择 PDF 时，发送按钮仍可点，但点击发送必须阻止提交并提示：`请选择一个知识库 PDF`。
-
-### 10.3 提交与等待
-
-提交动作（确定版）：
-
-- 用户点击发送（或等价的“开始生成”）：调用创建任务接口：
-  - `POST /note-gen/jobs`，body：`{ kbPdfId, pageRange: { mode: 'all' }, configSnapshotId?: number }`
-- 创建成功后，在当前对话流中插入一条“任务卡片消息”（不需要另开页面）：
-  - 展示 `jobId`（可复制）
-  - 展示当前 `status/progressPercent`
-  - 展示点数：`chargedPoints` 与 `estimatedCostPoints.min~max`
-
-等待/轮询（确定版，对齐第 2.2 与第 5.1.2）：
-
-- 创建成功后立即拉一次详情：`GET /note-gen/jobs/:jobId`
-- 自动刷新：每 60 秒拉一次（用户在该会话内/切换对话仍可继续轮询；退出页面后由用户下次进入再刷新）
-- 手动刷新：任务卡片内提供“刷新”按钮，点击立刻拉一次 `GET /note-gen/jobs/:jobId`
-
-等待界面必须包含（确定版）：
-
-- 6 段进度条（显示 0~100 的数字百分比；不展示步骤名）
-- 提示文案（固定）：`你可以做其他事，任务完成后可回来下载。`
-- 点数信息：
-  - `已消耗：{chargedPoints} 点`
-  - `预计消耗：{min}~{max} 点`（若两者为 0，可隐藏预计区）
-
-严格禁止（确定版）：
-
-- 不提供“取消/中断”按钮
-- 不展示 signed-url（避免轮询导致 URL 过期/浪费）
-
-### 10.4 失败处理
-
-状态展示（确定版，对齐第 5.1.2 的 `userMessage`）：
-
-- `status=failed`：展示接口返回的固定文案（强调可续跑与不浪费）
-- `status=incomplete`：展示接口返回的固定文案（强调可续跑与不重复扣费）
-
-操作按钮（确定版）：
-
-- 在 `failed/incomplete` 的任务卡片上显示：`继续生成` 按钮
-- 点击 `继续生成`：再次调用 `POST /note-gen/jobs`（同一个 `kbPdfId`，同一个 pageRange，使用当前启用配置或用户当时选择的 configSnapshotId）
-  - 由于第 5.1.1 的幂等规则，通常会返回同一个 jobId；若 service 选择返回新的 jobId，也必须更新卡片绑定到新 jobId
-
-错误信息边界（确定版）：
-
-- Chat 不展示 `lastErrorStack` 等敏感/冗长错误，仅展示 `userMessage`
-- 具体排错由 Admin 端查看（第 9 章）
-
-### 10.5 完成后交付
-
-完成判定（确定版）：
-
-- 仅当 `GET /note-gen/jobs/:jobId` 返回：
-  - `status=completed`
-  - 且 `resultFiles` 至少包含两条（`markdown-markmap` 与 `word` 且均 `status=ready`）
-  - 才展示“下载区”。
-
-下载区 UI（确定版）：
-
-- 两张文件卡片（从 `resultFiles` 渲染，不硬编码）：
-  - `type=markdown-markmap`：显示 `fileName/sizeBytes/updatedAt`
-  - `type=word`：显示 `fileName/sizeBytes/updatedAt`
-
-下载动作（确定版，对齐第 5.1.3）：
-
-- 点击文件卡片：调用 `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`
-- 拿到 `{ url, expiresAt }` 后立即触发浏览器下载（新开窗口或直接跳转均可）
-- 若下载失败或 URL 过期：允许用户再次点击重新获取 signed-url（不缓存 URL）
-
-并发/状态边界（确定版）：
-
-- 若接口返回 409（artifact `uploading`）：提示 `文件正在上传，请稍后重试`，不重试循环
+1) 任务概览：`jobId/userId/kbPdfId/pipelineKey/status/progressPercent/estimatedCostMinPoints~estimatedCostMaxPoints/chargedPoints/chargeStatus/deductType/createdAt/updatedAt/startedAt/completedAt/cleanupAt`。
+2) 输入 PDF 快照：`pdfCosBucket/pdfCosRegion/pdfCosKey/pdfEtag/pdfSizeBytes/pageCount`。
+3) 存储状态：`resultCosPrefix/cosUploadStatus/cosUploadedAt`。
+4) 产物列表：列 `type/status/fileName/contentType/sizeBytes/etag/updatedAt`，下载按钮。
+5) Step 用量明细：列 `stepNumber/status/startedAt/endedAt/modelName/provider/totalTokens/providerCost/chargeStatus/chargedPoints/chargedAt/errorMessage`。
+6) 错误信息：`lastErrorCode/lastErrorMessage/lastErrorAt/lastErrorStack`。
 
 ---
 
-## 11. 交付清单（本期）
+## 10. Chat 端需求（前端实现）
 
-本期交付以“可用闭环”为准：用户能从 Chat 发起任务、看到进度、拿到两份下载产物；管理员能配置与排错；失败可续跑且不重复扣费。
+> 章节目标：在 Chat 内实现“选择 KB PDF → 创建任务 → 轮询进度 → 下载交付/失败续跑”闭环。
+
+### 10.1 入口与按钮
+
+- 位置：Chat Footer，按钮样式与现有 pill 按钮一致。
+- icon：准备一个小图标。
+- 交互：点击选中进入“生成笔记”模式，再次点击取消。选中后左上角模型选择不影响本功能。
+
+### 10.2 参数选择与预计点数展示
+
+必选输入（确定版）：
+
+- `kbPdfId`：知识库中的一个 PDF 文档。
+- `pageRange`：本期不可修改，固定 `{ mode: 'all' }`。
+
+交互（确定版）：
+
+- 进入“生成笔记”模式后，在输入框区域展示 PDF 选择器。
+- 选中 PDF 后，调用 `GET /note-gen/config` 获取配置，并展示预计点数（当前固定展示 0）。
+- 未选择 PDF 时，发送按钮应阻止提交并提示。
+
+### 10.3 提交与进度轮询
+
+提交动作（确定版）：
+
+- 用户确认后调用 `POST /note-gen/jobs`。
+- 创建成功后，在当前对话流中插入一条“任务卡片消息”，展示 `jobId`、`status`、`progressPercent`。
+
+轮询与刷新（确定版）：
+
+- 自动刷新：每 60 秒拉一次 `GET /note-gen/jobs/:jobId`。
+- 手动刷新：卡片内提供“刷新”按钮。
+- 进度展示：展示 6 段进度条（0~100%）及提示文案。
+
+### 10.4 失败处理与续跑
+
+状态展示（确定版）：
+
+- `status=failed/incomplete`：展示 `userMessage` 错误信息。
+- 操作按钮：显示“继续生成”按钮，点击后再次调用 `POST /note-gen/jobs` 触发幂等续跑。
+
+### 10.5 产物下载与清理提示
+
+完成判定（确定版）：
+
+- 仅当 `status=completed` 且 `resultFiles` 包含 `markdown-markmap` 与 `word` 且均 `ready` 时展示下载区。
+
+下载动作（确定版）：
+
+- 点击文件卡片调用 `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`。
+- 拿到 URL 后立即触发浏览器下载。
+- 清理提示：提示“文件将在生成 7 天后自动清理，请及时保存”。
+
+---
+
+## 11. 交付清单（当前代码对齐版）
+
+本期交付以“可用闭环”为准：用户能从 Chat 发起任务、看到进度、拿到两份下载产物；管理员能配置与排错；失败可续跑。
 
 - 后端（99AI-ANKI service）：
-  - 数据表与索引：`note_gen_config`、`note_gen_job`、`note_gen_job_step_usage`、`note_gen_job_artifact`（对齐第 4 章）
-  - Chat API（对齐第 5.1）：
-    - `POST /note-gen/jobs`
-    - `GET /note-gen/jobs/:jobId`
-    - `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`
-  - Admin API（对齐第 5.2）：
-    - `GET/PUT /admin/note-gen/config`
-    - `GET /admin/note-gen/jobs`、`GET /admin/note-gen/jobs/:jobId`
-    - `GET /admin/note-gen/jobs/:jobId/files/:fileType/signed-url`
-  - 扣费与幂等（对齐第 8 章）：
-    - step 级结算幂等（`jobId+stepNumber`）
-    - 任务级 `chargedPoints/chargeStatus` 维护
-    - 点数不足时将 job 置为 `failed` 且可续跑
-  - COS 签名下载：过期秒数复用 `kbCosSignedUrlExpiresSeconds`（默认 60 秒）
 
+  - 数据表与索引：`note_gen_config`、`note_gen_job`、`note_gen_job_step_usage`、`note_gen_job_artifact`（已实现）
+  - Chat API：
+    - `POST /note-gen/jobs`（已实现，含幂等逻辑）
+    - `GET /note-gen/jobs/:jobId`（已实现，含产物列表）
+    - `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`（已实现）
+  - Admin API：
+    - `GET/PUT /admin/note-gen/config`（已实现，含版本化逻辑）
+    - `GET /admin/note-gen/jobs`、`GET /admin/note-gen/jobs/:jobId`（已实现）
+  - 幂等键计算：`userId-kbPdfId-pipelineKey-pageRange-configId-configVersion-pdfEtag`（已实现）
 - Worker（Python 3.11）：
-  - Worker API（对齐第 6.3）：
-    - `GET /api/pdf-note/health`
-    - `POST /api/pdf-note/generate-notes`
-  - 流水线能力：仅 `generate-notes`，steps 严格 `[1,2,3,4,5,8]`
-  - 本地目录与断点续跑：`work/kb/{userId}/{kbPdfId}/pipeline/{jobId}`（对齐第 6.5 与第 7 章）
-  - 存储与上传：写 `resultCosPrefix` 目录，最终产物两份必须可下载（对齐第 7.2/7.3）
-  - 写库：进度（6 段）、step_usage 用量事实、artifact 产物记录（对齐第 6 章）
-  - 7 天清理：按 `cleanupAt` 清理本地 `pipeline/{jobId}`（对齐第 7.4）
 
+  - Worker API：
+    - `POST /api/pdf-note/generate-notes`（已实现）
+  - 流水线能力：`generate-notes`，steps `[1,2,3,4,5,8]`（已实现）
+  - 本地目录：`work/kb/{userId}/{kbPdfId}/`（已实现）
+  - 存储与上传：递归上传本地目录至 `resultCosPrefix`（已实现）
+  - 写库：进度更新、step_usage 记录、artifact 记录（已实现）
+  - 7 天清理：Worker 自动设置 `cleanupAt`（已实现）
 - Admin（99AI-ANKI/admin）：
-  - `模型管理 → 笔记生成配置`：查看当前启用配置 + 发布新版本（对齐第 9.1）
-  - `数据管理 → 笔记管理`：列表/详情/下载/排错（对齐第 9.2）
 
+  - `模型管理 → 笔记生成配置`（待前端实现）
+  - `数据管理 → 笔记管理`（待前端实现）
 - Chat（99AI-ANKI/chat）：
-  - Chat Footer 增加 `生成笔记` pill 按钮（对齐第 10.1）
-  - 选择 KB PDF → 创建任务 → 轮询进度（60 秒自动 + 手动刷新）（对齐第 10.2~10.3）
-  - 完成后两份文件卡片下载（签名 URL 单独接口）（对齐第 10.5）
-  - `failed/incomplete` 提示与“继续生成”（幂等续跑）（对齐第 10.4）
+
+  - `生成笔记` 模式切换与 PDF 选择（待前端实现）
+  - 任务卡片、进度轮询、下载按钮（待前端实现）
 
 ---
 
@@ -1286,17 +1107,18 @@ UI 形态（最小实现，确定版）：
 本期设计已为扩展预留：`pipelineKey/stepsJson/pageRangeJson`、step_usage 覆盖 1..N、artifact 表可扩展更多 type。
 
 - 功能 2：生成 Anki（不做，仅占位）
+
   - 新增 pipelineKey：`generate-anki`
   - steps：`[1,2,3,4,5,6,7]`
   - Admin 配置：补齐 step6/7 的模型与参数
   - 产物：新增 anki 包或卡片文件（新增 artifact.type 枚举值）
-
 - 功能 3：按页重置并重建（不做，仅占位）
+
   - 新增 pipelineKey：`reset-pages`
   - `pageRangeJson` 启用 range 模式，并在幂等键中纳入页范围
   - steps：`[9,3,4,5,8]`（第 9 步负责删除指定页相关批次/中间产物）
   - 需要明确“删除范围”与“保留范围”的产物规则，避免影响已完成交付
-
 - Chat 端自定义页范围（不做，仅占位）
+
   - UI 增加页范围输入（all/range/single），并对齐 API 校验
   - 预计点数与幂等键计算需纳入页范围
