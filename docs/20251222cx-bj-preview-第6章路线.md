@@ -140,7 +140,7 @@ python -m test.test_step3
    - **超时保护**：在 `api/main.py` 的步骤循环中增加 `timeout` 检查（默认 1 小时），防止僵尸任务占用资源。
    - **异常捕获**：统一使用 `logger.error` 记录堆栈，并确保在任务失败或超时时正确更新 `job_registry` 状态。
 4. **产物命名优化 (Step 4 预研)**：
-   - 更新 `PipelineConfig` 逻辑，使 Step 8 生成的 Markdown/Markmap/Word 文件名自动包含原始 PDF 名称（如 `{pdf_name}_knowledge_base_notes.docx`）。
+   - 更新 `PipelineConfig` 逻辑，使 Step 8 生成的 Markdown/Markmap/Word 文件名自动包含原始 PDF 名称（如 `{pdf_name}_知识点笔记.md`）。
 
 ### 验证结果
 - **并发压力测试**：成功同时启动 3 个真实 PDF 任务（《中学综合素质》、《张宇8套卷》、《肖八背诵版》）。
@@ -167,21 +167,41 @@ python -m test.test_step_3_5
 ### 实施总结
 1. **动态命名逻辑**：
    - 修改 `core/config.py`，在 `PipelineConfig` 中实现了基于 `{book_name}` 的动态路径属性。
-   - **Markmap MD**：自动命名为 `{pdf_name}_knowledge_base_markmap_notes.md`。
-   - **Word 文档**：自动命名为 `{pdf_name}_knowledge_base_notes.docx`。
-   - **Markdown**：自动命名为 `{pdf_name}_knowledge_base_notes.md`。
-2. **路径标准化**：所有产物统一存放在 `work/kb/{userId}/{kbPdfId}/pipeline/{jobId}/` 目录下，确保路径结构与后端逻辑完全对齐。
-3. **脚本适配**：更新了 Step 8 的三个生成脚本（Markdown, Markmap, Word），使其完全通过 `config` 对象获取输出路径，消除了硬编码。
+   - **Markdown 笔记**：自动命名为 `{pdf_name}_知识点笔记.md`。
+   - **思维导图**：自动命名为 `{pdf_name}_知识点思维导图.md`。
+   - **Word 文档**：自动命名为 `{pdf_name}_知识点笔记.docx`。
+2. **路径扁平化 (Worker 模式优化)**：
+   - 优化了 `PipelineConfig.base_dir` 逻辑：在 Worker 模式下（存在 `job_id`），直接使用 `output_root` 作为工作目录，取消了多余的 `{book_name}` 嵌套层级，确保路径结构与后端挂载逻辑完全对齐。
+3. **全流程路径审计与修复**：
+   - 审计并更新了 `test_step1` 到 `test_step8` 的所有核心脚本。
+   - 废弃了脚本中硬编码的 `os.path.join(OUTPUT_DIR, ...)`，统一改为引用 `config.structure_file`、`config.full_book_json` 等标准化属性，解决了步骤间因路径不一致导致的“文件找不到”报错。
+4. **API 与 UI 细节优化**：
+   - 修复了 `api/main.py` 中 `Path` 模块未导入导致的 `NameError`。
+   - 修正了 Step 8 生成笔记时的标题逻辑：从显示 `job_id` 改为显示真实的 `book_name`。
+   - 增加了 `api/main.py` 对上传文件名的自动提取，确保 `book_name` 默认取自 PDF 文件名。
 
 ### 验证结果
-- **固定命名校验**：在 `work/kb/2/1/pipeline/` 目录下，成功生成了如下文件：
-  - `20251中学综合素质1-10_knowledge_base_notes.docx`
-  - `【数一试题】2026版张宇8套卷（卷一）_knowledge_base_markmap_notes.md`
-- **产物完整性**：验证了 Word 文档通过 Pandoc 转换后，标题层级（1-3级）与公式渲染正常，且文件名自动去除了路径中的非法字符。
-- **全量跑通**：3 个并发任务均成功产出了对应的 Markdown、Markmap 和 Word 笔记，证明了 Step 8 在多任务环境下的稳定性。
+- **目录结构验证**：在 `pipeline/{jobId}/` 根目录下直接生成文件，结构扁平清晰，解决了之前版本中存在的 `.` 冗余目录或多层嵌套问题。
+- **固定命名校验**：在集成测试中成功生成包含 PDF 原名的产物（以《中学综合素质》为例）：
+  - `20251中学综合素质1-10_知识点笔记.md`
+  - `20251中学综合素质1-10_知识点思维导图.md`
+  - `20251中学综合素质1-10_知识点笔记.docx`
+- **全流程集成测试**：通过 `test_step_3_5.py` 验证了并发场景下的 1,2,3,4,5,8 全步骤跑通，确认了路径审计后的各步骤连贯性。
+- **命名专项测试**：运行 `test_step4_naming_integration.py` 验证了通过 API 触发时，Worker 能正确从请求中提取 PDF 文件名并应用于产物命名。
+- **标题正确性**：生成的 Markdown 笔记一级标题已正确显示为书名，而非 Job ID。
+
+### 验证脚本
+```bash
+# 1. 运行单元测试（验证配置逻辑）
+python src/test/test_step4_naming.py
+
+# 2. 运行集成测试（验证 API 触发与目录创建）
+# 需先启动服务：python -m api.main
+python src/test/test_step4_naming_integration.py
+```
 
 ### 回滚策略
-- 还原 `core/config.py` 中的文件名定义。
+- 还原 `core/config.py` 中的文件名定义，移除 `api/main.py` 中的 `pdf_stem` 提取逻辑。
 
 ---
 
