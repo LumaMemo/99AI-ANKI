@@ -19,6 +19,10 @@ import { ConfigEntity } from '../globalConfig/config.entity';
 import { ModelsEntity } from '../models/models.entity';
 import { OrderEntity } from '../order/order.entity';
 import { PluginEntity } from '../plugin/plugin.entity';
+import { NoteGenConfigEntity } from '../noteGen/noteGenConfig.entity';
+import { NoteGenJobEntity } from '../noteGen/noteGenJob.entity';
+import { NoteGenJobStepUsageEntity } from '../noteGen/noteGenJobStepUsage.entity';
+import { NoteGenJobArtifactEntity } from '../noteGen/noteGenJobArtifact.entity';
 import { Share } from '../share/share.entity';
 import { SigninEntity } from '../signin/signIn.entity';
 import { UserEntity } from '../user/user.entity';
@@ -45,6 +49,10 @@ const dataSourceOptions: DataSourceOptions = {
     KbFolderEntity,
     KbPdfEntity,
     KbUserUsageEntity,
+    NoteGenConfigEntity,
+    NoteGenJobEntity,
+    NoteGenJobStepUsageEntity,
+    NoteGenJobArtifactEntity,
     BadWordsEntity,
     ChatGroupEntity,
     VerificationEntity,

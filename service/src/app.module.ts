@@ -19,6 +19,7 @@ import { DatabaseModule } from './modules/database/database.module';
 import { GlobalConfigModule } from './modules/globalConfig/globalConfig.module';
 import { KbModule } from './modules/kb/kb.module';
 import { ModelsModule } from './modules/models/models.module';
+import { NoteGenModule } from './modules/noteGen/noteGen.module';
 import { OfficialModule } from './modules/official/official.module';
 import { OrderModule } from './modules/order/order.module';
 import { PayModule } from './modules/pay/pay.module';
@@ -80,6 +81,7 @@ import { VerificationModule } from './modules/verification/verification.module';
     ApplicationModule,
     CramiModule,
     KbModule,
+    NoteGenModule,
     UserBalanceModule,
     ChatLogModule,
     UploadModule,

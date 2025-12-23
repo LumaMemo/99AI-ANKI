@@ -25,8 +25,8 @@ import {
 } from '@icon-park/vue-next'
 import mdKatex from '@traptitech/markdown-it-katex'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/atom-one-dark.css' // 更现代的深色主题
-import 'highlight.js/styles/atom-one-light.css' // 更现代的浅色主题
+import 'highlight.js/styles/atom-one-dark.css'; // 更现代的深色主题
+import 'highlight.js/styles/atom-one-light.css'; // 更现代的浅色主题
 import MarkdownIt from 'markdown-it'
 import mila from 'markdown-it-link-attributes'
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -512,8 +512,19 @@ function normalizeMarkdownAndMath(input: string) {
 }
 
 const text = computed(() => {
+  // 用户消息不渲染 markdown/latex，直接显示原始文本（转义 HTML 防止 XSS）
+  // 空格、tab、换行由 CSS white-space: pre-wrap 处理
+  if (props.isUserMessage) {
+    return (props.content || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+  // AI 消息正常渲染 markdown + latex
   const modifiedValue = normalizeMarkdownAndMath(props.content || '')
-  return props.isUserMessage ? mdiUser.render(modifiedValue) : mdi.render(modifiedValue)
+  return mdi.render(modifiedValue)
 })
 
 const reasoningText = computed<string>(() => {
@@ -1110,7 +1121,11 @@ function openSingleImagePreview(src: string) {
         </div>
         <!-- 只读模式 -->
         <div v-else class="bubble-user text-base break-words" style="max-width: 100%">
-          <div class="markdown-body text-[color:var(--text-primary)]" v-html="text"></div>
+          <div
+            :class="['text-[color:var(--text-primary)]', { 'markdown-body': !isUserMessage }]"
+            :style="isUserMessage ? 'white-space: pre-wrap; word-break: break-word;' : ''"
+            v-html="text"
+          ></div>
         </div>
       </div>
     </div>
