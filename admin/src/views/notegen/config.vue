@@ -24,10 +24,10 @@ const config = reactive({
   remark: '',
   configJson: {
     steps: {
-      "1": { modelName: "gpt-5-mini", concurrency: 50, maxRetries: 3, zoom: 3.0 },
-      "2": { modelName: "gemini-3-pro-preview", chunkSize: 10, overlapPages: 3 },
+      "1": { modelName: "gpt-4o-mini", concurrency: 50, maxRetries: 3, zoom: 3.0 },
+      "2": { modelName: "gemini-1.5-flash", chunkSize: 10, overlapPages: 3 },
       "3": { softLimitChars: 4000, hardLimitChars: 16384 },
-      "4": { modelName: "gemini-3-pro-preview", concurrency: 50, maxRetries: 3 },
+      "4": { modelName: "gemini-1.5-pro", concurrency: 50, maxRetries: 3 },
       "5": { reserved: true },
       "8": { outputs: { markdown: false, markdownMarkmap: true, word: false } }
     }
@@ -81,6 +81,7 @@ const fetchConfig = async () => {
     }
   } catch (error) {
     console.error(error);
+    ElMessage.error('获取配置失败');
   } finally {
     loading.value = false;
   }
@@ -139,7 +140,7 @@ onMounted(() => {
         <el-divider content-position="left">Step 1: PDF 解析与目录提取</el-divider>
         <el-form-item label="使用模型">
           <el-select v-model="config.configJson.steps['1'].modelName" placeholder="请选择模型" filterable clearable style="width: 100%">
-            <el-option v-for="m in models" :key="m.modelName" :label="m.modelName" :value="m.modelName" />
+            <el-option v-for="m in models" :key="m.model" :label="m.modelName" :value="m.model" />
           </el-select>
         </el-form-item>
         <el-form-item label="高级参数">
@@ -168,7 +169,7 @@ onMounted(() => {
         <el-divider content-position="left">Step 2: 内容分块与语义识别</el-divider>
         <el-form-item label="使用模型">
           <el-select v-model="config.configJson.steps['2'].modelName" placeholder="请选择模型" filterable clearable style="width: 100%">
-            <el-option v-for="m in models" :key="m.modelName" :label="m.modelName" :value="m.modelName" />
+            <el-option v-for="m in models" :key="m.model" :label="m.modelName" :value="m.model" />
           </el-select>
         </el-form-item>
         <el-form-item label="高级参数">
@@ -209,7 +210,7 @@ onMounted(() => {
         <el-divider content-position="left">Step 4: 核心知识点提取</el-divider>
         <el-form-item label="使用模型">
           <el-select v-model="config.configJson.steps['4'].modelName" placeholder="请选择模型" filterable clearable style="width: 100%">
-            <el-option v-for="m in models" :key="m.modelName" :label="m.modelName" :value="m.modelName" />
+            <el-option v-for="m in models" :key="m.model" :label="m.modelName" :value="m.model" />
           </el-select>
         </el-form-item>
         <el-form-item label="高级参数">

@@ -56,6 +56,7 @@ const fetchData = async () => {
     total.value = res.data.count;
   } catch (error) {
     console.error(error);
+    ElMessage.error('获取任务列表失败');
   } finally {
     loading.value = false;
   }

@@ -340,19 +340,13 @@ export class NoteGenService {
 
     // 2. 构造基础返回对象
     const result: any = {
-      jobId: job.jobId,
-      userId: job.userId,
-      kbPdfId: job.kbPdfId,
-      status: job.status,
+      ...job,
       progressPercent: Number(job.progressPercent),
+      pdfSizeBytes: Number(job.pdfSizeBytes),
       estimatedCostPoints: {
         min: job.estimatedCostMinPoints,
         max: job.estimatedCostMaxPoints,
       },
-      chargedPoints: job.chargedPoints,
-      chargeStatus: job.chargeStatus,
-      updatedAt: job.updatedAt,
-      createdAt: job.createdAt,
     };
 
     // 3. 失败/未完成提示
@@ -365,16 +359,16 @@ export class NoteGenService {
     // 4. 结果文件列表（仅当 status=completed 时返回，或者管理员查询时返回）
     if (job.status === 'completed' || userId === undefined) {
       const artifacts = await this.noteGenJobArtifactRepo.find({
-        where: { jobId, status: 'ready' },
+        where: { jobId },
       });
-      result.resultFiles = artifacts.map((art) => ({
-        type: art.type,
-        status: art.status,
-        fileName: art.fileName,
+      result.artifacts = artifacts.map((art) => ({
+        ...art,
         sizeBytes: Number(art.sizeBytes),
-        updatedAt: art.updatedAt,
       }));
+      // 兼容旧版 resultFiles 字段
+      result.resultFiles = result.artifacts.filter(a => a.status === 'ready');
     } else {
+      result.artifacts = [];
       result.resultFiles = [];
     }
 

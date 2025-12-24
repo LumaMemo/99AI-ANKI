@@ -30,6 +30,20 @@ const fetchData = async () => {
   }
 };
 
+const handleDownload = async (row: any) => {
+  try {
+    const res = await ApiNoteGen.getSignedUrl(jobId, row.type);
+    if (res.data && res.data.url) {
+      window.open(res.data.url, '_blank');
+    } else {
+      ElMessage.error('获取下载链接失败');
+    }
+  } catch (error) {
+    console.error(error);
+    ElMessage.error('获取下载链接失败');
+  }
+};
+
 const getStatusType = (status: string) => {
   switch (status) {
     case 'completed': return 'success';
@@ -97,7 +111,18 @@ onMounted(() => {
           <el-descriptions-item label="创建时间">{{ utcToShanghaiTime(job.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ job.startedAt ? utcToShanghaiTime(job.startedAt) : '-' }}</el-descriptions-item>
           <el-descriptions-item label="完成时间">{{ job.completedAt ? utcToShanghaiTime(job.completedAt) : '-' }}</el-descriptions-item>
-          <el-descriptions-item label="清理时间">{{ job.cleanupAt ? utcToShanghaiTime(job.cleanupAt) : '-' }}</el-descriptions-item>
+          <el-descriptions-item label="流水线">{{ job.pipelineKey }}</el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
+      <!-- PDF 快照 -->
+      <el-card header="PDF 快照" shadow="never">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="Bucket">{{ job.pdfCosBucket }}</el-descriptions-item>
+          <el-descriptions-item label="Region">{{ job.pdfCosRegion }}</el-descriptions-item>
+          <el-descriptions-item label="Key" :span="2">{{ job.pdfCosKey }}</el-descriptions-item>
+          <el-descriptions-item label="Etag">{{ job.pdfEtag }}</el-descriptions-item>
+          <el-descriptions-item label="文件大小">{{ (job.pdfSizeBytes / 1024 / 1024).toFixed(2) }} MB</el-descriptions-item>
         </el-descriptions>
       </el-card>
 
@@ -115,6 +140,19 @@ onMounted(() => {
           </el-descriptions-item>
           <el-descriptions-item label="总消耗 Token">{{ job.totalTokens || 0 }}</el-descriptions-item>
           <el-descriptions-item label="扣费类型">普通积分</el-descriptions-item>
+          <el-descriptions-item label="配置版本">V{{ job.configVersion }} (ID: {{ job.configId }})</el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
+      <!-- 存储与清理 -->
+      <el-card header="存储与清理" shadow="never">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="COS 前缀" :span="2">{{ job.resultCosPrefix }}</el-descriptions-item>
+          <el-descriptions-item label="上传状态">
+            <el-tag :type="job.cosUploadStatus === 'done' ? 'success' : 'info'">{{ job.cosUploadStatus }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="上传完成时间">{{ job.cosUploadedAt ? utcToShanghaiTime(job.cosUploadedAt) : '-' }}</el-descriptions-item>
+          <el-descriptions-item label="计划清理时间">{{ job.cleanupAt ? utcToShanghaiTime(job.cleanupAt) : '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-card>
 
@@ -134,6 +172,7 @@ onMounted(() => {
               {{ row.promptTokens }} / {{ row.completionTokens }} / {{ row.totalTokens }}
             </template>
           </el-table-column>
+          <el-table-column prop="providerCost" label="上游成本" width="100" align="center" />
           <el-table-column prop="chargedPoints" label="折算点数" width="100" align="center" />
           <el-table-column prop="status" label="执行状态" width="100" align="center">
             <template #default="{ row }">
@@ -171,12 +210,25 @@ onMounted(() => {
               <el-tag :type="row.status === 'ready' ? 'success' : 'info'">{{ row.status }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="操作" width="120" align="center">
+            <template #default="{ row }">
+              <el-button v-if="row.status === 'ready'" type="primary" link @click="handleDownload(row)">下载</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </el-card>
 
-      <!-- 错误堆栈 -->
-      <el-card v-if="job.lastErrorStack" header="错误堆栈" shadow="never">
-        <pre class="bg-gray-100 p-4 rounded overflow-auto max-h-60 text-xs">{{ job.lastErrorStack }}</pre>
+      <!-- 错误诊断 -->
+      <el-card v-if="job.lastErrorCode || job.lastErrorMessage" header="错误诊断" shadow="never">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="错误码">{{ job.lastErrorCode }}</el-descriptions-item>
+          <el-descriptions-item label="错误时间">{{ job.lastErrorAt ? utcToShanghaiTime(job.lastErrorAt) : '-' }}</el-descriptions-item>
+          <el-descriptions-item label="错误消息" :span="2">{{ job.lastErrorMessage }}</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="job.lastErrorStack" class="mt-4">
+          <div class="text-sm font-bold mb-2">错误堆栈:</div>
+          <pre class="bg-gray-100 p-4 rounded overflow-auto max-h-60 text-xs">{{ job.lastErrorStack }}</pre>
+        </div>
       </el-card>
     </div>
   </div>

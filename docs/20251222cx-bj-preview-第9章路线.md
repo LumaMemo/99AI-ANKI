@@ -72,30 +72,54 @@
 - **测试结果**：通过。已验证过滤功能和新增列的展示。
 **回滚策略**：撤销对 `index.vue` 的修改。
 
-### Step 4: 完善任务详情页面 (`detail.vue`) [PARTIALLY DONE]
+### Step 4: 完善任务详情页面 (`detail.vue`) [DONE]
 **目标**：实现全量审计信息展示与产物下载。
 **修改代码**：
 - 修改 [admin/src/views/notegen/detail.vue](admin/src/views/notegen/detail.vue)：
     - **已完成**：统一计费类型为“普通积分”；为 Token 消耗 (P/C/T) 增加 Tooltip 注释。
-    - **待完成**：增加 `PDF 快照` 描述列表（Bucket, Region, Key, Etag, Size）。
-    - **待完成**：增加 `存储与清理` 描述列表（Prefix, UploadStatus, CleanupAt）。
-    - **待完成**：增加 `错误诊断` 区块（展示 `lastErrorStack` 等）。
-    - **待完成**：产物表格增加“下载”操作列，调用 `ApiNoteGen.getSignedUrl`。
+    - **已完成**：增加 `PDF 快照` 描述列表（Bucket, Region, Key, Etag, Size）。
+    - **已完成**：增加 `存储与清理` 描述列表（Prefix, UploadStatus, CleanupAt）。
+    - **已完成**：增加 `错误诊断` 区块（展示 `lastErrorCode`, `lastErrorMessage`, `lastErrorAt`, `lastErrorStack`）。
+    - **已完成**：产物表格增加“下载”操作列，调用 `ApiNoteGen.getSignedUrl`。
+    - **已完成**：在步骤用量中增加 `providerCost` 展示。
 **验证脚本**：
 - 点击产物列表中的“下载”按钮，验证是否能获取到 COS 签名链接并触发下载。
-**回滚策略**：撤销对 `detail.vue` 的修改。
+- 检查详情页各新增区块的数据展示是否正确。
+**回滚策略**：使用 Git 丢弃对 `detail.vue` 的修改。
 
-### Step 5: UI 细节优化与联调
-**目标**：确保整体交互流畅，错误提示友好。
+### Step 5: UI 细节优化与联调 [DONE]
+**目标**：确保整体交互流畅，错误提示友好，前后端参数传递准确。
 **修改代码**：
-- 优化 `notegen` 目录下所有组件的 Loading 状态和错误处理逻辑。
-- 确保 `utcToShanghaiTime` 在所有时间列中正确应用。
+- **Admin 端优化**：
+    - 修改 [admin/src/views/notegen/config.vue](admin/src/views/notegen/config.vue)：将模型选择绑定值从 `modelName` (显示名) 修正为 `model` (绑定标识)，确保配置参数与后端/Worker 兼容。
+    - 修改 [admin/src/views/notegen/detail.vue](admin/src/views/notegen/detail.vue)：优化了 Loading 状态，确保 `utcToShanghaiTime` 应用于所有时间字段。
+- **后端 Service 增强**：
+    - 修改 [service/src/modules/noteGen/noteGen.service.ts](service/src/modules/noteGen/noteGen.service.ts)：
+        - `getJobDetail` 改为返回全量 Job 字段（使用 `...job`），支持详情页的审计信息展示。
+        - 统一产物列表字段名为 `artifacts`，并确保大数字字段（如 `sizeBytes`）转换为 Number 类型。
+- **Worker 联调修复**：
+    - 修改 [pdf_to_anki/src/api/main.py](pdf_to_anki/src/api/main.py)：
+        - 修复了 Step 8 产物输出开关被硬编码为 true 的问题，现在严格遵循 Admin 配置。
+        - 补齐了 Step 1, 2, 3, 4 的所有高级参数（并发、重试、缩放、分块、限制等）从 `configSnapshot` 到环境变量的映射。
 **验证脚本**：
 - 模拟 API 报错，检查 UI 是否弹出正确的错误提示。
+- 验证不同配置下的产物生成数量是否符合预期。
 **回滚策略**：无。
 
 ---
 
-## 3. 关键回滚策略
+## 3. 任务完成总结 (第 9 章：Admin 侧功能移植)
+
+本章节已全部完成，实现了从配置管理、任务监控到产物审计的全链路功能。
+
+**核心交付物：**
+1.  **配置中心**：支持版本化的笔记生成参数配置，支持模型绑定映射。
+2.  **任务中心**：支持多维度过滤的任务列表，以及包含 PDF 快照、计费明细、错误诊断的深度详情页。
+3.  **产物中心**：支持 COS 签名下载，支持按配置动态生成不同格式的笔记。
+4.  **联调闭环**：确保了 Admin -> NestJS -> Python Worker 的参数传递 100% 对齐。
+
+---
+
+## 4. 关键回滚策略
 - **代码层面**：所有修改均在 Git 分支上进行，若出现重大逻辑错误，直接 `git checkout .` 或回滚特定 commit。
 - **数据层面**：Admin 端主要为只读操作（除配置更新外）。配置更新采用版本化存储（新建记录），若新配置导致问题，可通过数据库手动将旧版本 `enabled` 置为 `true` 快速回滚。
