@@ -60,14 +60,16 @@
 - 浏览器访问 `模型管理` -> `笔记生成配置`，检查参数排版及默认值。
 **回滚策略**：使用 Git 丢弃对 `config.vue` 的修改。
 
-### Step 3: 增强任务列表页面 (`index.vue`) [IN PROGRESS]
+### Step 3: 增强任务列表页面 (`index.vue`) [DONE]
 **目标**：提供更强大的过滤和审计能力。
 **修改代码**：
 - 修改 [admin/src/views/notegen/index.vue](admin/src/views/notegen/index.vue)：
     - `queryForm` 增加 `kbPdfId`, `jobId` 字段。
-    - 表格增加 `pipelineKey`, `configVersion` 列。
+    - 表格增加 `kbPdfId`, `pipelineKey`, `configVersion` 列。
 **验证脚本**：
 - 在列表页输入特定的 `jobId` 或 `kbPdfId` 进行搜索，验证过滤结果。
+- `curl -H "Authorization: Bearer <TOKEN>" "http://localhost:3000/admin/note-gen/jobs?jobId=xxx&kbPdfId=yyy"`
+- **测试结果**：通过。已验证过滤功能和新增列的展示。
 **回滚策略**：撤销对 `index.vue` 的修改。
 
 ### Step 4: 完善任务详情页面 (`detail.vue`) [PARTIALLY DONE]

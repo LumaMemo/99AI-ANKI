@@ -20,6 +20,8 @@ const queryForm = reactive({
   size: 10,
   status: '',
   userId: '',
+  kbPdfId: '',
+  jobId: '',
 });
 
 const statusOptions = [
@@ -77,8 +79,14 @@ onMounted(() => {
   <div class="p-4">
     <el-card shadow="never">
       <el-form :inline="true" :model="queryForm" class="mb-4">
+        <el-form-item label="任务ID">
+          <el-input v-model="queryForm.jobId" placeholder="请输入任务ID" clearable style="width: 200px" @keyup.enter="handleSearch" />
+        </el-form-item>
         <el-form-item label="用户ID">
-          <el-input v-model="queryForm.userId" placeholder="请输入用户ID" clearable @keyup.enter="handleSearch" />
+          <el-input v-model="queryForm.userId" placeholder="请输入用户ID" clearable style="width: 120px" @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="KB PDF ID">
+          <el-input v-model="queryForm.kbPdfId" placeholder="请输入PDF ID" clearable style="width: 120px" @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="queryForm.status" placeholder="请选择状态" clearable style="width: 150px" @change="handleSearch">
@@ -92,7 +100,18 @@ onMounted(() => {
 
       <el-table v-loading="loading" :data="tableData" border style="width: 100%">
         <el-table-column prop="jobId" label="任务ID" width="320" />
-        <el-table-column prop="userId" label="用户ID" width="80" />
+        <el-table-column prop="userId" label="用户ID" width="80" align="center" />
+        <el-table-column prop="kbPdfId" label="PDF ID" width="80" align="center" />
+        <el-table-column prop="pipelineKey" label="流水线" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain">{{ row.pipelineKey }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="configVersion" label="配置版本" width="90" align="center">
+          <template #default="{ row }">
+            v{{ row.configVersion }}
+          </template>
+        </el-table-column>
         <el-table-column prop="pdfFileName" label="文件名" min-width="200" show-overflow-tooltip />
         <el-table-column prop="pageCount" label="页数" width="80" align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
