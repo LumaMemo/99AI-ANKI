@@ -12,6 +12,7 @@ import { KbPdfEntity } from '../kb/kbPdf.entity';
 import { KbModule } from '../kb/kb.module';
 import { forwardRef } from '@nestjs/common';
 import { GlobalConfigModule } from '../globalConfig/globalConfig.module';
+import { UserBalanceModule } from '../userBalance/userBalance.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GlobalConfigModule } from '../globalConfig/globalConfig.module';
     ]),
     forwardRef(() => KbModule),
     GlobalConfigModule,
+    UserBalanceModule,
   ],
   providers: [NoteGenService],
   controllers: [NoteGenController, AdminNoteGenController, WorkerNoteGenController],

@@ -17,6 +17,7 @@ import { KbPdfEntity } from '../kb/kbPdf.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 import { KbService } from '../kb/kb.service';
 import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
+import { UserBalanceService } from '../userBalance/userBalance.service';
 
 @Injectable()
 export class NoteGenService {
@@ -36,7 +37,22 @@ export class NoteGenService {
     private readonly globalConfigService: GlobalConfigService,
     @Inject(forwardRef(() => KbService))
     private readonly kbService: KbService,
+    private readonly userBalanceService: UserBalanceService,
   ) {}
+
+  /**
+   * 计算预计成本
+   * 公式：min = pageCount * 1.0, max = pageCount * 2.0
+   */
+  private calculateEstimatedCost(pageCount: number) {
+    // 如果 pageCount 为 0（尚未解析），给一个默认估算或基于文件大小的粗略估算
+    // 这里按文档要求实现
+    const count = pageCount || 1; // 至少按 1 页算
+    return {
+      min: Math.round(count * 1.0),
+      max: Math.round(count * 2.0),
+    };
+  }
 
   /**
    * 获取当前启用的配置
@@ -83,7 +99,14 @@ export class NoteGenService {
   async createJob(dto: CreateNoteGenJobDto, userId: number) {
     const { kbPdfId, pageRange, configSnapshotId } = dto;
 
-    // 1. 校验 kbPdfId 是否属于当前用户
+    // 1. 准入门槛校验：余额必须 >= 10 积分 (仅校验普通积分 sumModel3Count)
+    const balance = await this.userBalanceService.queryUserBalance(userId);
+    const totalBalance = (balance.sumModel3Count || 0);
+    if (totalBalance < 10) {
+      throw new BadRequestException('发起笔记生成任务至少需要 10 普通积分');
+    }
+
+    // 2. 校验 kbPdfId 是否属于当前用户
     const kbPdf = await this.kbPdfRepo.findOne({
       where: { id: kbPdfId, userId, status: 1 },
     });
@@ -91,7 +114,7 @@ export class NoteGenService {
       throw new NotFoundException('PDF 文件不存在或不属于该用户');
     }
 
-    // 2. 获取配置
+    // 3. 获取配置
     let config: NoteGenConfigEntity;
     if (configSnapshotId) {
       config = await this.noteGenConfigRepo.findOne({ where: { id: configSnapshotId } });
@@ -100,14 +123,14 @@ export class NoteGenService {
       config = await this.getActiveConfig();
     }
 
-    // 3. 计算 idempotencyKey
+    // 4. 计算 idempotencyKey
     // userId + kbPdfId + pipelineKey + pageRangeJson + configId + configVersion + pdfEtag
     const pipelineKey = 'generate-notes';
     const pageRangeJson = JSON.stringify(pageRange);
     const rawKey = `${userId}-${kbPdfId}-${pipelineKey}-${pageRangeJson}-${config.id}-${config.version}-${kbPdf.etag || ''}`;
     const idempotencyKey = createHash('sha256').update(rawKey).digest('hex');
 
-    // 4. 检查是否存在相同幂等键的 Job
+    // 5. 检查是否存在相同幂等键的 Job
     const existingJob = await this.noteGenJobRepo.findOne({
       where: { userId, idempotencyKey },
     });
@@ -123,7 +146,10 @@ export class NoteGenService {
       return existingJob;
     }
 
-    // 5. 创建新 Job
+    // 6. 计算预计成本
+    const estimatedCost = this.calculateEstimatedCost(kbPdf.pageCount || 0);
+
+    // 7. 创建新 Job
     const jobId = uuidv4();
     // 结果前缀与源 PDF 所在目录保持一致，以便续跑时整体下载
     const lastSlashIndex = kbPdf.cosKey.lastIndexOf('/');
@@ -146,7 +172,7 @@ export class NoteGenService {
       pdfEtag: kbPdf.etag,
       pdfFileName: kbPdf.originalName || kbPdf.displayName,
       pdfSizeBytes: Number(kbPdf.sizeBytes),
-      pageCount: 0, // 后续由 worker 更新
+      pageCount: kbPdf.pageCount || 0,
       // Config snapshot
       configId: config.id,
       configVersion: config.version,
@@ -159,14 +185,14 @@ export class NoteGenService {
       // Storage
       resultCosPrefix,
       // Charging
-      estimatedCostMinPoints: 0,
-      estimatedCostMaxPoints: 0,
+      estimatedCostMinPoints: estimatedCost.min,
+      estimatedCostMaxPoints: estimatedCost.max,
       chargeStatus: 'not_charged',
     });
 
     const savedJob = await this.noteGenJobRepo.save(newJob);
 
-    // 6. 异步触发 Worker
+    // 8. 异步触发 Worker
     this.triggerWorker(savedJob).catch((err) => {
       this.logger.error(`Failed to trigger worker for job ${jobId}: ${err.message}`, err.stack);
     });

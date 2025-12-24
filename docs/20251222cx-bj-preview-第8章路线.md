@@ -23,7 +23,7 @@
 
 | 步骤             | 任务名称              | 核心内容                                    | 验证点                                   |
 | :--------------- | :-------------------- | :------------------------------------------ | :--------------------------------------- |
-| **Step 1** | [补丁-第5章] Backend：`createJob` 升级 | 增加 10 点门槛校验与成本估算逻辑           | 余额不足拒绝创建；估算点数写入 DB         |
+| **Step 1** | [补丁-第5章] Backend：`createJob` 升级 | 增加 10 点门槛校验与成本估算逻辑           | 余额不足拒绝创建；估算点数写入 DB         | [已完成] |
 | **Step 2** | [新增] Backend：结算接口实现 | 实现 `charge-job` 接口，计算总价并执行扣费 | 任务完工后一次性扣费成功                 |
 | **Step 3** | [补丁-第6章] Worker：结算触发集成 | 完工后调用后端结算接口发送信号             | Worker 完工后触发后端扣费                |
 | **Step 4** | [补丁-第4章] 数据库状态语义同步 | 调整 Job 状态与计费字段的业务含义           | 状态机逻辑符合后扣费模式                 |
@@ -41,7 +41,7 @@
 
 1. **修改** `99AI-ANKI/service/src/modules/noteGen/noteGen.service.ts`：
    * **注入服务**：注入 `UserBalanceService`。
-   * **增加门槛校验**：在方法开头查询用户余额，若 `sumModel3Count + sumModel4Count < 10`，抛出 `BadRequestException('发起笔记生成任务至少需要 10 积分')`。
+   * **增加门槛校验**：在方法开头查询用户余额，若 `sumModel3Count < 10`，抛出 `BadRequestException('发起笔记生成任务至少需要 10 普通积分')`。
    * **实现成本估算**：新增私有方法 `calculateEstimatedCost(pageCount)`。公式：`min = pageCount * 1.0`, `max = pageCount * 2.0`。
    * **写入 DB**：在 `noteGenJobRepo.create` 时写入 `estimatedCostMinPoints/MaxPoints`。
 
@@ -126,3 +126,19 @@
 1. **计费逻辑回滚**：若扣费出现偏差，可紧急将 `NoteGenService.chargeJob` 逻辑改为“仅记录不扣费”，待修复后再通过脚本补扣。
 2. **幂等保护**：由于使用了 `jobId` 的唯一约束，重复调用不会导致超扣，风险受控。
 3. **余额恢复**：若因系统错误多扣，可通过 `UserBalanceService.addBalanceToUser` 手动冲正。
+
+---
+
+## 实施记录
+
+### [2025-12-25] Step 1 实施总结
+1. **依赖引入**：在 `NoteGenModule` 中引入 `UserBalanceModule`。
+2. **模型升级**：`KbPdfEntity` 增加 `pageCount` 字段。
+3. **逻辑实现**：
+   - `NoteGenService` 注入 `UserBalanceService`。
+   - 实现 `calculateEstimatedCost`：`min = pageCount * 1.0`, `max = pageCount * 2.0`（容错处理：`pageCount` 为 0 时按 1 页计）。
+   - `createJob` 增加门槛校验：**仅校验普通积分 (`sumModel3Count`)**，不足 10 点拦截。
+4. **测试验证**：
+   - 用户 ID 2（普通积分 7 点）发起任务，返回 `400` 错误，提示“发起笔记生成任务至少需要 10 普通积分”。
+   - 验证通过。
+
