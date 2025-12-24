@@ -163,3 +163,19 @@
 4. **测试验证**：
    - **模拟触发**：通过 `curl` 模拟 Worker 发送 `charge-job` 信号，后端成功接收并执行扣费逻辑。
    - **验证通过**。
+
+### [2025-12-25] Step 4 实施总结
+1. **状态机语义同步**：
+   - 明确 `status = 'failed'` 仅代表技术故障，不再包含余额不足场景（已由 Step 1 门槛校验拦截）。
+   - 在 `NoteGenService` 中实现 `updateJobStatus`，自动处理 `startedAt`、`completedAt` 及 7 天自动清理时间 `cleanupAt`。
+2. **用量上报机制**：
+   - 实现 `upsertStepUsage` 接口，支持 Worker 实时上报各步骤的模型、Token 消耗及错误信息。
+   - 采用 `upsert` 逻辑，确保 Worker 重试时数据幂等。
+3. **产物状态对齐**：
+   - 将 `reportArtifacts` 中的产物状态从 `'success'` 修正为 `'ready'`，符合前端下载校验逻辑。
+4. **Worker 接口补全**：
+   - `WorkerNoteGenController` 开放 `update-status` 和 `upsert-step-usage` 路由，受 `X-Worker-Token` 保护。
+5. **测试验证**：
+   - **状态流转测试**：模拟 Worker 将任务从 `completed` 回退到 `processing` (55%)，再恢复到 `completed`，验证了进度强制 100% 及时间戳更新逻辑。
+   - **用量上报测试**：模拟上报 Step 1 用量，验证了数据库记录的正确创建与更新。
+   - **验证通过**。

@@ -2,6 +2,8 @@ import { Controller, Post, Body, Headers, UnauthorizedException, Logger, BadRequ
 import { ApiOperation, ApiTags, ApiHeader } from '@nestjs/swagger';
 import { NoteGenService } from './noteGen.service';
 import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
+import { UpdateJobStatusDto } from './dto/updateJobStatus.dto';
+import { UpsertStepUsageDto } from './dto/upsertStepUsage.dto';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 
 @ApiTags('Worker 接口')
@@ -30,6 +32,34 @@ export class WorkerNoteGenController {
     }
 
     return this.noteGenService.reportArtifacts(dto);
+  }
+
+  @Post('update-status')
+  @ApiOperation({ summary: 'Worker 更新任务状态与进度' })
+  @ApiHeader({ name: 'X-Worker-Token', description: 'Worker 认证 Token' })
+  async updateStatus(
+    @Body() dto: UpdateJobStatusDto,
+    @Headers('x-worker-token') token: string,
+  ) {
+    const workerToken = await this.globalConfigService.getConfigs(['noteGenWorkerToken']);
+    if (!token || token !== workerToken) {
+      throw new UnauthorizedException('Invalid worker token');
+    }
+    return this.noteGenService.updateJobStatus(dto);
+  }
+
+  @Post('upsert-step-usage')
+  @ApiOperation({ summary: 'Worker 上报步骤用量' })
+  @ApiHeader({ name: 'X-Worker-Token', description: 'Worker 认证 Token' })
+  async upsertStepUsage(
+    @Body() dto: UpsertStepUsageDto,
+    @Headers('x-worker-token') token: string,
+  ) {
+    const workerToken = await this.globalConfigService.getConfigs(['noteGenWorkerToken']);
+    if (!token || token !== workerToken) {
+      throw new UnauthorizedException('Invalid worker token');
+    }
+    return this.noteGenService.upsertStepUsage(dto);
   }
 
   @Post('charge-job')

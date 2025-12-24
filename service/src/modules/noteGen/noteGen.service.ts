@@ -18,6 +18,8 @@ import { ModelsEntity } from '../models/models.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 import { KbService } from '../kb/kb.service';
 import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
+import { UpdateJobStatusDto } from './dto/updateJobStatus.dto';
+import { UpsertStepUsageDto } from './dto/upsertStepUsage.dto';
 import { UserBalanceService } from '../userBalance/userBalance.service';
 
 @Injectable()
@@ -542,7 +544,7 @@ export class NoteGenService {
         cosKey: a.cosKey,
         cosBucket: a.cosBucket,
         cosRegion: a.cosRegion,
-        status: 'success',
+        status: 'ready',
       });
     });
 
@@ -560,6 +562,85 @@ export class NoteGenService {
       `Job ${jobId}: Reported ${artifacts.length} artifacts, total ${totalBytes} bytes added to user ${job.userId} quota.`,
     );
     return { success: true, totalBytes };
+  }
+
+  /**
+   * Worker 更新任务状态与进度
+   */
+  async updateJobStatus(dto: UpdateJobStatusDto) {
+    const { jobId, status, progressPercent, lastErrorCode, lastErrorMessage } = dto;
+
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 更新状态与进度
+    job.status = status;
+    if (progressPercent !== undefined) {
+      job.progressPercent = progressPercent;
+    }
+
+    // 语义同步：如果是 processing 且尚未记录开始时间，则记录
+    if (status === 'processing' && !job.startedAt) {
+      job.startedAt = new Date();
+    }
+
+    // 语义同步：如果是 completed，记录完成时间与清理时间（7天后）
+    if (status === 'completed') {
+      job.completedAt = new Date();
+      job.cleanupAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      job.progressPercent = 100; // 强制 100%
+    }
+
+    // 记录错误信息
+    if (status === 'failed' || status === 'incomplete') {
+      job.lastErrorCode = lastErrorCode || '';
+      job.lastErrorMessage = lastErrorMessage || '';
+      job.lastErrorAt = new Date();
+    }
+
+    return await this.noteGenJobRepo.save(job);
+  }
+
+  /**
+   * Worker 上报步骤用量（Upsert）
+   */
+  async upsertStepUsage(dto: UpsertStepUsageDto) {
+    const { jobId, stepNumber, status, modelName, promptTokens, completionTokens, totalTokens, providerCost, errorCode, errorMessage } = dto;
+
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 查找现有记录
+    let usage = await this.noteGenJobStepUsageRepo.findOne({
+      where: { jobId, stepNumber },
+    });
+
+    if (!usage) {
+      usage = this.noteGenJobStepUsageRepo.create({
+        jobId,
+        stepNumber,
+        startedAt: new Date(),
+      });
+    }
+
+    usage.status = status;
+    usage.modelName = modelName;
+    usage.promptTokens = promptTokens;
+    usage.completionTokens = completionTokens;
+    usage.totalTokens = totalTokens;
+    usage.providerCost = providerCost || 0;
+    usage.errorCode = errorCode || '';
+    usage.errorMessage = errorMessage || '';
+    usage.endedAt = new Date();
+
+    // 注意：chargeStatus 保持为 not_charged，直到 chargeJob 被调用
+    // 除非该步骤之前已经结算过（续跑场景），则不覆盖 chargeStatus
+
+    return await this.noteGenJobStepUsageRepo.save(usage);
   }
 
   /**
