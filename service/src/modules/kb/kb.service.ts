@@ -21,6 +21,7 @@ import { KbQuotaResponseDto } from './dto/kbQuota.dto';
 import { KbFolderEntity } from './kbFolder.entity';
 import { KbPdfEntity } from './kbPdf.entity';
 import { KbUserUsageEntity } from './kbUserUsage.entity';
+import { NoteGenService } from '../noteGen/noteGen.service';
 
 const DEFAULT_FREE_QUOTA_BYTES = 50 * 1024 * 1024;
 const DEFAULT_KB_COS_PREFIX = 'kb';
@@ -52,6 +53,7 @@ export class KbService {
     @InjectRepository(KbPdfEntity)
     private readonly pdfRepo: Repository<KbPdfEntity>,
     private readonly globalConfigService: GlobalConfigService,
+    private readonly noteGenService: NoteGenService,
   ) {}
 
   private toNumber(value: unknown, defaultValue = 0): number {
@@ -669,9 +671,7 @@ export class KbService {
 
     const sizeBytes = this.toNumber(record.sizeBytes, 0);
 
-    // 1) 尝试删除 COS（best-effort）：失败不阻塞删库
-    // - 允许 COS 未启用/未配置时仍能删库
-    // - 允许 record 上缺少 cosKey/cosBucket/cosRegion 时仍能删库
+    // 1) 尝试删除 COS 目录（包含 PDF、笔记及所有中间产物）
     try {
       const cfg = await this.getKbCosConfig();
       if (
@@ -680,9 +680,7 @@ export class KbService {
         cfg.secretKey &&
         cfg.bucket &&
         cfg.region &&
-        record.cosKey &&
-        record.cosBucket &&
-        record.cosRegion
+        record.cosKey
       ) {
         const cos = new TENCENTCOS({
           SecretId: cfg.secretId,
@@ -690,39 +688,81 @@ export class KbService {
           FileParallelLimit: 10,
         });
 
-        await new Promise((resolve, reject) => {
-          cos.deleteObject(
-            {
-              Bucket: removeSpecialCharacters(record.cosBucket),
-              Region: removeSpecialCharacters(record.cosRegion),
-              Key: record.cosKey,
-            },
-            (err, data) => {
-              if (err) return reject(err);
-              return resolve(data);
-            },
+        // 计算文件夹前缀：从 kb/2/root/test/7/test.pdf 提取出 kb/2/root/test/7/
+        const lastSlashIndex = record.cosKey.lastIndexOf('/');
+        const folderPrefix = lastSlashIndex !== -1
+          ? record.cosKey.substring(0, lastSlashIndex + 1)
+          : '';
+
+        if (folderPrefix && folderPrefix !== '/' && folderPrefix.length > 5) {
+          await this.deleteCosDirectory(
+            cos,
+            record.cosBucket || cfg.bucket,
+            record.cosRegion || cfg.region,
+            folderPrefix,
           );
-        });
+        }
       }
-    } catch {
+    } catch (err) {
       // ignore：按产品要求，COS 删除失败也直接删库
     }
 
-    // 2) 删除 DB 记录（从列表彻底移除）
+    // 2) 级联删除关联的笔记生成任务及产物
+    const artifactBytes = await this.noteGenService.deleteJobsByPdfId(id);
+
+    // 3) 删除 DB 记录（从列表彻底移除）
     await this.pdfRepo.delete({ id, userId });
 
-    // 3) usedBytes -= sizeBytes（不低于 0）
-    if (sizeBytes > 0) {
+    // 4) usedBytes -= (sizeBytes + artifactBytes)（不低于 0）
+    const totalDelta = sizeBytes + artifactBytes;
+    if (totalDelta > 0) {
       await this.usageRepo
         .createQueryBuilder()
         .update(KbUserUsageEntity)
         .set({ usedBytes: () => 'GREATEST(usedBytes - :delta, 0)' })
         .where('userId = :userId', { userId })
-        .setParameters({ delta: sizeBytes })
+        .setParameters({ delta: totalDelta })
         .execute();
     }
 
     return { success: true };
+  }
+
+  private async deleteCosDirectory(cos: TENCENTCOS, bucket: string, region: string, prefix: string) {
+    if (!prefix || prefix === '/' || prefix.trim() === '') return;
+
+    // 1. 列出目录下所有对象
+    const list: any = await new Promise((resolve, reject) => {
+      cos.getBucket(
+        {
+          Bucket: removeSpecialCharacters(bucket),
+          Region: removeSpecialCharacters(region),
+          Prefix: prefix,
+        },
+        (err, data) => {
+          if (err) return reject(err);
+          resolve(data);
+        },
+      );
+    });
+
+    const objects = list.Contents || [];
+    if (objects.length === 0) return;
+
+    // 2. 批量删除
+    await new Promise((resolve, reject) => {
+      cos.deleteMultipleObject(
+        {
+          Bucket: removeSpecialCharacters(bucket),
+          Region: removeSpecialCharacters(region),
+          Objects: objects.map((obj: any) => ({ Key: obj.Key })),
+        },
+        (err, data) => {
+          if (err) return reject(err);
+          resolve(data);
+        },
+      );
+    });
   }
 
   async renameFile(userId: number, fileId: number, body: { displayName: string }) {
@@ -748,5 +788,32 @@ export class KbService {
       sizeBytes: this.toNumber(saved.sizeBytes, 0),
       createdAt: saved.createdAt ? new Date(saved.createdAt).toISOString() : '',
     };
+  }
+
+  /**
+   * 原子更新用户已用空间（支持正负值）
+   */
+  async updateUserUsage(userId: number, deltaBytes: number) {
+    if (!userId || deltaBytes === 0) return;
+
+    if (deltaBytes > 0) {
+      // 增加空间
+      await this.usageRepo
+        .createQueryBuilder()
+        .update(KbUserUsageEntity)
+        .set({ usedBytes: () => 'usedBytes + :delta' })
+        .where('userId = :userId', { userId })
+        .setParameters({ delta: deltaBytes })
+        .execute();
+    } else {
+      // 减少空间（不低于 0）
+      await this.usageRepo
+        .createQueryBuilder()
+        .update(KbUserUsageEntity)
+        .set({ usedBytes: () => 'GREATEST(usedBytes - :delta, 0)' })
+        .where('userId = :userId', { userId })
+        .setParameters({ delta: Math.abs(deltaBytes) })
+        .execute();
+    }
   }
 }

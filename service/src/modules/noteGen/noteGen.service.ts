@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
@@ -15,6 +15,8 @@ import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
 import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
+import { KbService } from '../kb/kb.service';
+import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
 
 @Injectable()
 export class NoteGenService {
@@ -32,6 +34,8 @@ export class NoteGenService {
     @InjectRepository(KbPdfEntity)
     private readonly kbPdfRepo: Repository<KbPdfEntity>,
     private readonly globalConfigService: GlobalConfigService,
+    @Inject(forwardRef(() => KbService))
+    private readonly kbService: KbService,
   ) {}
 
   /**
@@ -367,6 +371,99 @@ export class NoteGenService {
     });
 
     return { url, expiresAt };
+  }
+
+  /**
+   * 删除指定 PDF 关联的所有任务及产物（级联删除）
+   */
+  async deleteJobsByPdfId(kbPdfId: number) {
+    // 1. 查找所有关联的 Job
+    const jobs = await this.noteGenJobRepo.find({ where: { kbPdfId } });
+    if (jobs.length === 0) return 0;
+
+    // 2. 获取 COS 配置
+    const rawConfigs = await this.globalConfigService.getConfigs([
+      'kbTencentCosStatus',
+      'kbCosSecretId',
+      'kbCosSecretKey',
+      'kbCosBucket',
+      'kbCosRegion',
+    ]);
+    const cosEnabled = Number(rawConfigs.kbTencentCosStatus) === 1;
+    const secretId = rawConfigs.kbCosSecretId;
+    const secretKey = rawConfigs.kbCosSecretKey;
+
+    let cos: TENCENTCOS | null = null;
+    if (cosEnabled && secretId && secretKey) {
+      cos = new TENCENTCOS({
+        SecretId: secretId,
+        SecretKey: secretKey,
+        FileParallelLimit: 10,
+      });
+    }
+
+    let totalArtifactBytes = 0;
+
+    for (const job of jobs) {
+      // 3. 统计产物大小并删除产物记录
+      const artifacts = await this.noteGenJobArtifactRepo.find({
+        where: { jobId: job.jobId },
+      });
+      for (const art of artifacts) {
+        totalArtifactBytes += Number(art.sizeBytes || 0);
+      }
+
+      // 4. 删除 DB 记录
+      await this.noteGenJobArtifactRepo.delete({ jobId: job.jobId });
+      await this.noteGenJobStepUsageRepo.delete({ jobId: job.jobId });
+      await this.noteGenJobRepo.delete({ id: job.id });
+    }
+
+    return totalArtifactBytes;
+  }
+
+  /**
+   * Worker 上报产物元数据并更新配额
+   */
+  async reportArtifacts(dto: ReportArtifactsDto) {
+    const { jobId, artifacts } = dto;
+
+    // 1. 查找 Job
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 2. 开启事务处理产物记录与配额更新
+    let totalBytes = 0;
+    const artifactEntities = artifacts.map((a) => {
+      totalBytes += a.sizeBytes;
+      return this.noteGenJobArtifactRepo.create({
+        jobId,
+        type: a.type,
+        fileName: a.fileName,
+        sizeBytes: a.sizeBytes,
+        cosKey: a.cosKey,
+        cosBucket: a.cosBucket,
+        cosRegion: a.cosRegion,
+        status: 'success',
+      });
+    });
+
+    await this.noteGenJobArtifactRepo.manager.transaction(async (manager) => {
+      // 批量保存产物记录 (使用 upsert 避免重复上报导致配额重复增加)
+      for (const entity of artifactEntities) {
+        await manager.upsert(NoteGenJobArtifactEntity, entity, ['jobId', 'type']);
+      }
+
+      // 更新用户配额
+      await this.kbService.updateUserUsage(job.userId, totalBytes);
+    });
+
+    this.logger.log(
+      `Job ${jobId}: Reported ${artifacts.length} artifacts, total ${totalBytes} bytes added to user ${job.userId} quota.`,
+    );
+    return { success: true, totalBytes };
   }
 
   /**
