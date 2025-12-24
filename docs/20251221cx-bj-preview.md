@@ -64,7 +64,7 @@
 - `processing`：处理中
 - `completed`：完成（产物可下载）
 - `incomplete`：未完成（已上传部分产物，可续跑）
-- `failed`：点数不足，失败（系统错误；需可续跑，且不浪费点数）
+- `failed`：失败（系统错误或结算异常；需可续跑，且不浪费点数）
 
 ### 3.3 断点续传与不可中断
 
@@ -161,11 +161,11 @@
 - `configVersion: number`：创建任务时的配置版本号。
 - `configSnapshotJson: json`：创建任务时固化的完整配置快照。
 
-计费（失败续跑不重复扣费的基础字段）
+计费（完工后结算的基础字段）
 
-- `estimatedCostMinPoints: number`：预计最小点数。
-- `estimatedCostMaxPoints: number`：预计最大点数。
-- `chargedPoints: number`：该 job 已扣点数（聚合自 step_usage 的 chargedPoints）。
+- `estimatedCostMinPoints: number`：预计最小点数（后端根据页数计算）。
+- `estimatedCostMaxPoints: number`：预计最大点数（后端根据页数计算）。
+- `chargedPoints: number`：该 job 最终结算扣除的总点数。
 - `chargeStatus: string`：`not_charged` | `charging` | `charged` | `partial`。
 - `deductType: number`：扣费类型（对齐现有系统枚举）。
 
@@ -222,10 +222,10 @@
 - `totalTokens: number`
 - `providerCost: number`：上游成本。
 
-结算（保证失败续跑不重复扣费）
+结算（用于统计与审计，实际扣费在 Job 完工后执行）
 
-- `chargeStatus: string`：`not_charged` | `charged`。
-- `chargedPoints: number`：该 step 已扣点数。
+- `chargeStatus: string`：`not_charged` | `charged`（标记该步骤用量是否已计入 Job 结算）。
+- `chargedPoints: number`：该 step 对应的折算点数。
 - `chargedAt: datetime`
 
 错误
@@ -310,19 +310,21 @@
 - `pageRange: { mode: 'all' }`（必填；仅允许 all）
 - `configSnapshotId?: number`（可选，整数；指定某条 `note_gen_config.id`；不传则使用当前启用配置）
 
-创建语义（幂等确定版）：
+创建语义（幂等与门槛校验确定版）：
 
-- 服务端计算 `idempotencyKey` 并落库：
+- **准入门槛校验**：后端查询用户当前余额，必须 **≥ 10 积分** 才能发起任务。
+- **预计点数计算**：后端根据 PDF 页数计算 `pageCount * (1.0 ~ 2.0)`，写入 `estimatedCostPoints`。
+- **幂等键计算**：
   - **计算公式**：`sha256(userId + "-" + kbPdfId + "-" + pipelineKey + "-" + pageRangeJson + "-" + configId + "-" + configVersion + "-" + (pdfEtag || ""))`
   - 存入 `note_gen_job.idempotencyKey`
-- 若发现同一 `userId + idempotencyKey` 已存在 job：直接返回已存在 job（不新建、不重复扣费）。
+- **幂等处理**：若发现同一 `userId + idempotencyKey` 已存在 job：直接返回已存在 job（不新建、不重复扣费）。
 
 返回（`CreateNoteGenJobResponseDto`）：
 
 - `jobId: string`（UUID）
 - `status: NoteGenJobStatus`
 - `progressPercent: number`（创建时为 0）
-- `estimatedCostPoints: { min: number; max: number }`
+- `estimatedCostPoints: { min: number; max: number }`（后端实时计算返回）
 - `chargedPoints: number`（创建时为 0）
 - `chargeStatus: NoteGenChargeStatus`（创建时为 `not_charged`）
 - `createdAt: string`（ISO）
@@ -330,7 +332,7 @@
 
 错误（HTTP）：
 
-- 400：`kbPdfId` 非法；`pageRange.mode` 非 `all`；配置不存在；PDF 记录缺少 COS 关键字段
+- 400：`kbPdfId` 非法；`pageRange.mode` 非 `all`；配置不存在；PDF 记录缺少 COS 关键字段；**余额不足 10 积分**
 - 401：未登录
 - 404：`kbPdfId` 不存在或不属于该用户
 
@@ -496,8 +498,8 @@ Admin 下载（确定版）：
 
 ### 6.0 术语与边界（固定）
 
-- **99AI-ANKI service（NestJS）**：对外提供 Chat/Admin API；维护 DB（第 4 章四张表）；负责创建 job、幂等、扣费、签名下载。
-- **pdf_to_anki Worker（FastAPI）**：仅做流水线计算与 COS I/O；按本章规则写入/更新 `note_gen_job`、`note_gen_job_step_usage`、`note_gen_job_artifact`。
+- **99AI-ANKI service（NestJS）**：对外提供 Chat/Admin API；维护 DB（第 4 章四张表）；负责创建 job、幂等、**计费审查（门槛校验）与最终扣费结算**。
+- **pdf_to_anki Worker（FastAPI）**：**计费纯粹化**：仅做流水线计算与 COS I/O；按本章规则写入/更新 `note_gen_job`、`note_gen_job_step_usage`（仅报账 Token 用量）、`note_gen_job_artifact`；**不参与任何计费逻辑审查，仅在完工后发送结算信号**。
 - **断点续传**：不记录“断点步数”，以“step_usage 成功记录 + 本地/ COS 产物存在性”决定跳过/继续。
 - **不可中断**：Worker 不提供取消/中断接口。
 - **代码结构**：遵循 `src/api/` (接口), `src/core/` (逻辑), `src/services/` (外部服务) 的模块化结构。
@@ -702,10 +704,11 @@ Job 错误字段写入（固定）：
 6)（步骤流程 5）接入真实 `generate-notes` 执行：允许临时 `localPdfPath` 绕过 COS 下载；执行过程中按 6 段写 registry（单调递增）
 7)（步骤流程 6）生成两份最终产物并固定命名：确保以 `PipelineConfig` 命名规则生成产物（示例：`{book_name}_知识点笔记.md`、`{book_name}_知识点思维导图.md`、`{book_name}_知识点笔记.docx`），并在上传时以这些文件名写入 `note_gen_job_artifact.fileName`。
 
-#### 第 3 阶段：对齐第 4/5 章闭环（COS + MySQL 写库）
+#### 第 3 阶段：对齐第 4/5 章闭环（COS + MySQL 写库 + 结算触发）
 
 8)（步骤流程 7）接入 COS：去掉 `localPdfPath`；下载 source.pdf；上传产物/必要中间产物到 `resultCosPrefix`
 9)（步骤流程 8）接入 MySQL：执行过程中写入 `note_gen_job/step_usage/artifact`；Worker 查询接口可切到读 DB
+10)（步骤流程 9）触发结算：在 `report_artifacts` 成功后，调用 99AI 后端的 `charge-job` 接口发送完工结算信号。
 
 完成以上 9 步后，本章视为完成。接下来进入第 7~10 章：
 
@@ -873,9 +876,9 @@ Worker 启动时的回落策略：若本地缺少某个中间产物或最终产�
 
 ## 8. 计费与结算后端逻辑（点数 + Token）
 
-> 章节目标：明确“预计点数如何算、实际点数何时扣、失败/续跑如何做到不重复扣费”，确保后端结算逻辑的严密性。
+> 章节目标：明确“预计点数如何算、准入门槛校验、完工后结算以及失败/续跑如何做到不重复扣费”，确保后端结算逻辑的严密性。
 
-### 8.1 任务幂等与估算（当前实现）
+### 8.1 任务幂等与估算（确定版）
 
 **幂等键计算公式（与代码 100% 对齐）**：
 
@@ -883,77 +886,54 @@ Worker 启动时的回落策略：若本地缺少某个中间产物或最终产�
 - `idempotencyKey = sha256(rawKey)`
 - **作用**：确保同一用户对同一 PDF、同一配置、同一页码范围的请求不会创建重复任务，且续跑时能找回原任务。
 
-**预计点数（当前状态）**：
+**预计点数估算（确定版）**：
 
-- **当前实现**：`estimatedCostMinPoints` 与 `estimatedCostMaxPoints` 默认初始化为 `0`。
-- **后续计划**：由后端根据 PDF 页数与配置规则计算，供前端展示。
+- **估算公式**：`pageCount * (1.0 ~ 2.0)` 点数。
+- **示例**：10 页 PDF 预计消耗 10-20 积分。
+- **实现**：由后端在 `createJob` 时根据 PDF 页数计算并写入 `estimatedCostMinPoints` 与 `estimatedCostMaxPoints`。
 
-### 8.2 实际扣费（确定版：按 step 成功结算，失败可续跑不重复扣费）
+### 8.2 准入门槛校验（确定版）
 
-**当前实现状态**：
+为了防止恶意调用并保证基础服务成本，系统设置了任务发起的准入门槛：
 
-- `chargeStatus` 初始为 `not_charged`。
-- 实际扣费逻辑（Worker 触发 Service 扣费）目前处于**待开发**阶段。
+- **校验逻辑**：在 `POST /note-gen/jobs` 创建任务时，后端会查询用户当前余额（`sumModel3Count + sumModel4Count`）。
+- **门槛值**：用户账户余额必须 **≥ 10 积分**。
+- **失败处理**：若余额不足 10 积分，直接返回 400 错误，提示“发起笔记生成任务至少需要 10 积分”。
 
-**设计目标（确定版）**：
+### 8.3 完工后结算（确定版：任务完成后一次性扣费）
 
-- 扣费触发时机：每个 step 在写入 `note_gen_job_step_usage.status=success` 后，立刻触发一次“该 step 的扣费尝试”。
-- 扣费幂等原则：同一 `jobId + stepNumber` 最多扣费一次。
-- 以 DB 字段作为唯一事实：`note_gen_job_step_usage.chargeStatus='charged'` 代表已结算完成，后续重试不得重复扣。
+**设计目标**：为了提升用户体验，系统允许用户在余额较低时完成任务（支持扣至负数），并在任务全部成功交付后进行一次性结算。
 
-建议增加 Worker → service 的内部扣费触发接口（仅内网/仅 Worker 调用）：
+- **扣费触发时机**：当 Worker 完成所有步骤（1,2,3,4,5,8）且产物成功上传至 COS 后，触发一次性结算。
+- **结算接口**：`POST /api/worker/note-gen/charge-job`（仅限 Worker 调用）。
+- **结算逻辑**：
+  1) 汇总该 Job 下所有 `step_usage` 记录的 Token 消耗。
+  2) 根据 Admin 配置的模型扣费策略计算总点数。
+  3) 调用 `UserBalanceService.deductFromBalance` 执行扣费（允许余额为负）。
+  4) 更新 Job 状态：`chargedPoints = 总点数`, `chargeStatus = 'charged'`。
 
-- `POST /internal/note-gen/jobs/:jobId/steps/:stepNumber/charge`
-- Auth：使用单独的内部 token（例如 `X-Internal-Worker-Token`），避免复用用户 JWT。
-
-内部扣费接口语义（确定版）：
-
-1) service 在事务内锁定该 job 与该 step_usage（建议 `SELECT ... FOR UPDATE`）。
-2) 若 step_usage 不存在或 `status != success`：返回 409（表示还不可扣）。
-3) 若 step_usage `chargeStatus='charged'`：返回 200（幂等成功）。
-4) 计算 points：完全复用 admin 现有“模型名称 → 扣费策略”与 token 计费口径。
-5) 检查余额并扣减：
-   - 成功：写 step_usage `chargedPoints/chargedAt/chargeStatus='charged'`。
-   - 并更新 job：`chargedPoints = SUM(step_usage.chargedPoints)`，`chargeStatus = 'charging' | 'charged' | 'partial'`。
-   - 余额不足：返回 402（或 409），并进入 8.4 的“点数不足失败流程”。
-
-### 8.3 任务级 chargeStatus（确定版：状态含义与写入规则）
+### 8.4 任务级 chargeStatus 枚举与写入规则
 
 `note_gen_job.chargeStatus` 枚举：`not_charged | charging | charged | partial`。
 
-写入规则（确定版）：
+- **创建 Job**：初始为 `not_charged`。
+- **结算开始**：进入结算流程时置为 `charging`。
+- **结算成功**：全量扣费完成后置为 `charged`。
+- **异常情况**：若因系统错误导致仅部分步骤被记录或结算中断，置为 `partial`。
 
-- 创建 job：`chargeStatus='not_charged'`，`chargedPoints=0`。
-- 任意一个 step 完成并成功扣费后：`chargeStatus='charging'`。
-- 所有本期 steps（`[1,2,3,4,5,8]`）对应的 step_usage 均为 `status=success && chargeStatus='charged'`：`chargeStatus='charged'`。
-- 若已扣费部分 step，但 job 最终 `status=incomplete|failed`：
-  - `chargeStatus='partial'`
+### 8.5 失败、续跑与不重复扣费
 
-### 8.4 点数不足（确定版：如何失败、如何续跑、如何不重复扣费）
+- **失败续跑**：若任务在执行过程中失败（未进入结算阶段），用户再次发起时，Worker 会根据 `step_usage` 跳过已成功的步骤。
+- **不重复扣费**：结算接口必须保证幂等。若 `chargeStatus` 已为 `charged`，重复调用结算接口应直接返回成功，不执行二次扣费。
+- **透支充值**：由于允许余额扣为负值，用户在看到生成的笔记产物后，若觉得满意，可充值以抵消欠费并继续使用后续功能。
 
-触发点（确定版）：service 在某个 step 的扣费尝试中判定余额不足。
-
-service 必须做的写库动作（确定版）：
-
-- 将该 job 标记为：`note_gen_job.status='failed'`，`note_gen_job.chargeStatus='partial'`（若之前已有扣费）或保持 `not_charged`。
-- 写 `lastErrorCode='INSUFFICIENT_POINTS'`、`lastErrorMessage`、`lastErrorAt`。
-
-Worker 行为（确定版）：
-
-- 收到“余额不足”响应后：立即停止后续步骤执行，将 job 保持在 `failed`（由 service 写入为准）。
-
-续跑规则（确定版）：
-
-- 用户充值后再次发起 `POST /note-gen/jobs`：由于幂等，会返回同一个 job。
-- Worker 续跑时：已 `status=success` 的 step 依第 6.7 直接跳过。若存在 `status=success` 但 `chargeStatus!='charged'` 的 step_usage，必须先触发补扣费。
-
-### 8.5 Admin 成本统计口径（确定版）
+### 8.6 Admin 成本统计口径（确定版）
 
 统计事实来源（固定）：`note_gen_job_step_usage`。
 
-- token 统计：`promptTokens/completionTokens/totalTokens` 直接汇总。
-- 上游成本：`providerCost` 按 stepNumber、modelName 聚合。
-- 点数统计：`chargedPoints` 以 step_usage 为事实来源聚合到 job。
+- **Token 统计**：`promptTokens/completionTokens/totalTokens` 直接汇总。
+- **上游成本**：`providerCost` 按 stepNumber、modelName 聚合。
+- **点数统计**：`chargedPoints` 以 Job 结算结果为准。
 
 ---
 
