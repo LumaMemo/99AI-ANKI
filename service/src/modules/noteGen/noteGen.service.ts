@@ -14,6 +14,7 @@ import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto'
 import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
 import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { ModelsEntity } from '../models/models.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
 import { KbService } from '../kb/kb.service';
 import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
@@ -34,6 +35,8 @@ export class NoteGenService {
     private readonly noteGenJobStepUsageRepo: Repository<NoteGenJobStepUsageEntity>,
     @InjectRepository(KbPdfEntity)
     private readonly kbPdfRepo: Repository<KbPdfEntity>,
+    @InjectRepository(ModelsEntity)
+    private readonly modelsRepo: Repository<ModelsEntity>,
     private readonly globalConfigService: GlobalConfigService,
     @Inject(forwardRef(() => KbService))
     private readonly kbService: KbService,
@@ -188,6 +191,7 @@ export class NoteGenService {
       estimatedCostMinPoints: estimatedCost.min,
       estimatedCostMaxPoints: estimatedCost.max,
       chargeStatus: 'not_charged',
+      deductType: 1, // 默认扣除普通积分
     });
 
     const savedJob = await this.noteGenJobRepo.save(newJob);
@@ -198,6 +202,72 @@ export class NoteGenService {
     });
 
     return savedJob;
+  }
+
+  /**
+   * 结算任务
+   * 汇总该 Job 下所有 step_usage 的 Token 消耗 -> 根据模型单价计算总点数 -> 执行扣费
+   */
+  async chargeJob(jobId: string) {
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    // 如果已经结算过，直接返回
+    if (job.chargeStatus === 'charged') {
+      this.logger.log(`Job ${jobId} already charged, skipping.`);
+      return job;
+    }
+
+    // 1. 汇总所有步骤用量
+    const stepUsages = await this.noteGenJobStepUsageRepo.find({ where: { jobId } });
+    let totalPoints = 0;
+    let totalTokens = 0;
+
+    for (const usage of stepUsages) {
+      // 如果该步骤已经结算过，跳过
+      if (usage.chargeStatus === 'charged') {
+        totalPoints += usage.chargedPoints;
+        totalTokens += usage.totalTokens;
+        continue;
+      }
+
+      // 获取模型单价
+      const model = await this.modelsRepo.findOne({ where: { modelName: usage.modelName } });
+      let stepPoints = 0;
+      if (model) {
+        // 计费逻辑参考 ChatService: charge = deduct * Math.ceil(totalTokens / tokenFeeRatio)
+        if (model.isTokenBased && model.tokenFeeRatio > 0) {
+          stepPoints = model.deduct * Math.ceil(usage.totalTokens / model.tokenFeeRatio);
+        } else {
+          // 非 token 计费，按单次扣费
+          stepPoints = model.deduct || 0;
+        }
+      } else {
+        this.logger.warn(`Model ${usage.modelName} not found for job ${jobId} step ${usage.stepNumber}, using 0 points.`);
+      }
+
+      // 更新步骤结算状态
+      usage.chargedPoints = stepPoints;
+      usage.chargeStatus = 'charged';
+      usage.chargedAt = new Date();
+      await this.noteGenJobStepUsageRepo.save(usage);
+
+      totalPoints += stepPoints;
+      totalTokens += usage.totalTokens;
+    }
+
+    // 2. 执行扣费 (允许扣至负数)
+    const deductType = job.deductType || 1;
+    await this.userBalanceService.deductFromBalance(job.userId, deductType, totalPoints, totalTokens, true);
+
+    // 3. 更新 Job 状态
+    job.chargedPoints = totalPoints;
+    job.totalTokens = totalTokens;
+    job.chargeStatus = 'charged';
+    
+    return await this.noteGenJobRepo.save(job);
   }
 
   /**

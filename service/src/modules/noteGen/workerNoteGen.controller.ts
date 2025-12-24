@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Headers, UnauthorizedException, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Headers, UnauthorizedException, Logger, BadRequestException } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiHeader } from '@nestjs/swagger';
 import { NoteGenService } from './noteGen.service';
 import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
@@ -30,5 +30,26 @@ export class WorkerNoteGenController {
     }
 
     return this.noteGenService.reportArtifacts(dto);
+  }
+
+  @Post('charge-job')
+  @ApiOperation({ summary: 'Worker 触发任务结算' })
+  @ApiHeader({ name: 'X-Worker-Token', description: 'Worker 认证 Token' })
+  async chargeJob(
+    @Body('jobId') jobId: string,
+    @Headers('x-worker-token') token: string,
+  ) {
+    const workerToken = await this.globalConfigService.getConfigs(['noteGenWorkerToken']);
+    
+    if (!token || token !== workerToken) {
+      this.logger.warn(`Unauthorized charge-job attempt with token: ${token}`);
+      throw new UnauthorizedException('Invalid worker token');
+    }
+
+    if (!jobId) {
+      throw new BadRequestException('jobId is required');
+    }
+
+    return this.noteGenService.chargeJob(jobId);
   }
 }

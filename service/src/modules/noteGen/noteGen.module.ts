@@ -9,6 +9,7 @@ import { NoteGenController } from './noteGen.controller';
 import { AdminNoteGenController } from './adminNoteGen.controller';
 import { WorkerNoteGenController } from './workerNoteGen.controller';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { ModelsEntity } from '../models/models.entity';
 import { KbModule } from '../kb/kb.module';
 import { forwardRef } from '@nestjs/common';
 import { GlobalConfigModule } from '../globalConfig/globalConfig.module';
@@ -22,6 +23,7 @@ import { UserBalanceModule } from '../userBalance/userBalance.module';
       NoteGenJobArtifactEntity,
       NoteGenJobStepUsageEntity,
       KbPdfEntity,
+      ModelsEntity,
     ]),
     forwardRef(() => KbModule),
     GlobalConfigModule,
