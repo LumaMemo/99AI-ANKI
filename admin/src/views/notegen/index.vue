@@ -1,6 +1,6 @@
 <route lang="yaml">
 meta:
-  title: 任务管理
+  title: 笔记管理
 </route>
 
 <script lang="ts" setup>
@@ -65,7 +65,7 @@ const handleSearch = () => {
 };
 
 const handleDetail = (row: any) => {
-  router.push(`/note-gen/detail/${row.jobId}`);
+  router.push(`/chat/note-gen-detail/${row.jobId}`);
 };
 
 onMounted(() => {

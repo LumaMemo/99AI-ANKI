@@ -41,6 +41,25 @@ const routes: RouteRecordRaw = {
         icon: 'ic:outline-question-answer',
       },
     },
+    {
+      path: 'note-gen-jobs',
+      name: 'noteGenJobs',
+      component: () => import('@/views/notegen/index.vue'),
+      meta: {
+        title: '笔记管理',
+        icon: 'material-symbols:task-outline',
+      },
+    },
+    {
+      path: 'note-gen-detail/:jobId',
+      name: 'noteGenDetail',
+      component: () => import('@/views/notegen/detail.vue'),
+      meta: {
+        title: '任务详情',
+        sidebar: false,
+        activeMenu: '/chat/note-gen-jobs',
+      },
+    },
   ],
 };
 

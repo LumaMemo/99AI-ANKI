@@ -3,7 +3,6 @@ import { setupLayouts } from 'virtual:meta-layouts';
 import type { RouteRecordRaw } from 'vue-router';
 import AppMenu from './modules/app.menu';
 import ChatMenu from './modules/chat.menu';
-import NoteGenMenu from './modules/notegen.menu';
 import AiMenu from './modules/model.menu';
 import PackageMenu from './modules/package.menu';
 import PayMenu from './modules/pay.menu';
@@ -97,7 +96,6 @@ const asyncRoutes: Route.recordMainRaw[] = [
       UserMenu,
       AiMenu,
       ChatMenu,
-      NoteGenMenu,
       AppMenu,
       SecureMenu,
       StorageMenu,

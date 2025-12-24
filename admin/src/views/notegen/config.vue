@@ -1,6 +1,6 @@
 <route lang="yaml">
 meta:
-  title: 配置管理
+  title: 笔记生成配置
 </route>
 
 <script lang="ts" setup>

@@ -29,6 +29,15 @@ const routes: RouteRecordRaw = {
         icon: 'lets-icons:setting-line',
       },
     },
+    {
+      path: 'note-gen-config',
+      name: 'noteGenConfig',
+      component: () => import('@/views/notegen/config.vue'),
+      meta: {
+        title: '笔记生成配置',
+        icon: 'material-symbols:settings-outline',
+      },
+    },
   ],
 };
 
