@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router';
 import ApiNoteGen from '@/api/modules/notegen';
 import { utcToShanghaiTime } from '@/utils/utcFormatTime';
 import { ElMessage } from 'element-plus';
+import { QuestionFilled } from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -113,7 +114,7 @@ onMounted(() => {
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="总消耗 Token">{{ job.totalTokens || 0 }}</el-descriptions-item>
-          <el-descriptions-item label="扣费类型">{{ job.deductType === 1 ? '普通积分' : '高级积分' }}</el-descriptions-item>
+          <el-descriptions-item label="扣费类型">普通积分</el-descriptions-item>
         </el-descriptions>
       </el-card>
 
@@ -122,7 +123,13 @@ onMounted(() => {
         <el-table :data="job.stepUsages" border stripe>
           <el-table-column prop="stepNumber" label="步骤" width="80" align="center" />
           <el-table-column prop="modelName" label="使用模型" min-width="150" />
-          <el-table-column label="Token 消耗 (P/C/T)" width="220">
+          <el-table-column width="220">
+            <template #header>
+              <span>Token 消耗 (P/C/T)</span>
+              <el-tooltip content="P: Prompt (输入), C: Completion (输出), T: Total (总计)" placement="top">
+                <el-icon class="ml-1 cursor-help"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </template>
             <template #default="{ row }">
               {{ row.promptTokens }} / {{ row.completionTokens }} / {{ row.totalTokens }}
             </template>

@@ -48,19 +48,19 @@
     - `数据管理` -> `笔记管理`
 **回滚策略**：恢复 `notegen.menu.ts` 并撤销对 `model.menu.ts`、`chat.menu.ts` 和 `routes.ts` 的修改。
 
-### Step 2: 增强配置管理页面 (`config.vue`)
+### Step 2: 增强配置管理页面 (`config.vue`) [DONE]
 **目标**：支持全量 `configJson` 结构及版本元数据展示。
 **修改代码**：
 - 修改 [admin/src/views/notegen/config.vue](admin/src/views/notegen/config.vue)：
-    - 模板中增加 Step 3 (限制)、Step 5 (保留)、Step 8 (输出) 的配置项。
-    - 为 Step 1, 2, 4 增加 `concurrency`, `maxRetries` 等高级参数输入。
+    - 模板中增加 Step 3 (限制)、Step 5 (整理卡片)、Step 8 (输出) 的配置项。
+    - 为 Step 1, 2, 4 增加 `concurrency`, `maxRetries`, `zoom` 等高级参数输入。
     - 增加 `version`, `updatedByAdminId`, `remark` 的只读展示。
+    - **优化**：锁定 Step 5 为系统内置不可修改；同步 `.env` 默认模型配置；统一计费类型为“普通积分”。
 **验证脚本**：
-- `curl -H "Authorization: Bearer <TOKEN>" http://localhost:3000/admin/note-gen/config`
-- 检查返回的 JSON 是否包含新定义的步骤参数。
+- 浏览器访问 `模型管理` -> `笔记生成配置`，检查参数排版及默认值。
 **回滚策略**：使用 Git 丢弃对 `config.vue` 的修改。
 
-### Step 3: 增强任务列表页面 (`index.vue`)
+### Step 3: 增强任务列表页面 (`index.vue`) [IN PROGRESS]
 **目标**：提供更强大的过滤和审计能力。
 **修改代码**：
 - 修改 [admin/src/views/notegen/index.vue](admin/src/views/notegen/index.vue)：
@@ -70,17 +70,17 @@
 - 在列表页输入特定的 `jobId` 或 `kbPdfId` 进行搜索，验证过滤结果。
 **回滚策略**：撤销对 `index.vue` 的修改。
 
-### Step 4: 完善任务详情页面 (`detail.vue`)
+### Step 4: 完善任务详情页面 (`detail.vue`) [PARTIALLY DONE]
 **目标**：实现全量审计信息展示与产物下载。
 **修改代码**：
 - 修改 [admin/src/views/notegen/detail.vue](admin/src/views/notegen/detail.vue)：
-    - 增加 `PDF 快照` 描述列表（Bucket, Region, Key, Etag, Size）。
-    - 增加 `存储与清理` 描述列表（Prefix, UploadStatus, CleanupAt）。
-    - 增加 `错误诊断` 区块（展示 `lastErrorStack` 等）。
-    - 产物表格增加“下载”操作列，调用 `ApiNoteGen.getSignedUrl`。
+    - **已完成**：统一计费类型为“普通积分”；为 Token 消耗 (P/C/T) 增加 Tooltip 注释。
+    - **待完成**：增加 `PDF 快照` 描述列表（Bucket, Region, Key, Etag, Size）。
+    - **待完成**：增加 `存储与清理` 描述列表（Prefix, UploadStatus, CleanupAt）。
+    - **待完成**：增加 `错误诊断` 区块（展示 `lastErrorStack` 等）。
+    - **待完成**：产物表格增加“下载”操作列，调用 `ApiNoteGen.getSignedUrl`。
 **验证脚本**：
 - 点击产物列表中的“下载”按钮，验证是否能获取到 COS 签名链接并触发下载。
-- `curl -H "Authorization: Bearer <TOKEN>" http://localhost:3000/admin/note-gen/jobs/<JOB_ID>`
 **回滚策略**：撤销对 `detail.vue` 的修改。
 
 ### Step 5: UI 细节优化与联调
