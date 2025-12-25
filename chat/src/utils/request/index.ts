@@ -12,6 +12,11 @@ export interface HttpOption {
   signal?: GenericAbortSignal
   beforeRequest?: () => void
   afterRequest?: () => void
+  /**
+   * When true, suppresses global error toasts for non-401 errors.
+   * Useful for best-effort background/secondary requests.
+   */
+  silent?: boolean
 }
 
 export interface Response<T = any> {
@@ -39,6 +44,7 @@ function http<T = any>({
   signal,
   beforeRequest,
   afterRequest,
+  silent,
 }: HttpOption) {
   const ms = message()
 
@@ -77,8 +83,10 @@ function http<T = any>({
       }
       last401ErrorTimestamp = Date.now()
     } else {
-      if (data && !data?.success) {
-        ms.error(data?.message || '请求接口错误！')
+      if (!silent) {
+        if (data && !data?.success) {
+          ms.error(data?.message || '请求接口错误！')
+        }
       }
     }
     throw new Error(error?.response?.data?.message || error?.message || 'Error')
@@ -124,6 +132,7 @@ export function get<T = any>({
   signal,
   beforeRequest,
   afterRequest,
+  silent,
 }: HttpOption): Promise<Response<T>> {
   return http<T>({
     url,
@@ -133,6 +142,7 @@ export function get<T = any>({
     signal,
     beforeRequest,
     afterRequest,
+    silent,
   })
 }
 
@@ -145,6 +155,7 @@ export function post<T = any>({
   signal,
   beforeRequest,
   afterRequest,
+  silent,
 }: HttpOption): Promise<Response<T>> {
   return http<T>({
     url,
@@ -155,6 +166,7 @@ export function post<T = any>({
     signal,
     beforeRequest,
     afterRequest,
+    silent,
   })
 }
 
@@ -167,6 +179,7 @@ export function patch<T = any>({
   signal,
   beforeRequest,
   afterRequest,
+  silent,
 }: HttpOption): Promise<Response<T>> {
   return http<T>({
     url,
@@ -177,6 +190,7 @@ export function patch<T = any>({
     signal,
     beforeRequest,
     afterRequest,
+    silent,
   })
 }
 
@@ -189,6 +203,7 @@ export function del<T = any>({
   signal,
   beforeRequest,
   afterRequest,
+  silent,
 }: HttpOption): Promise<Response<T>> {
   return http<T>({
     url,
@@ -199,6 +214,7 @@ export function del<T = any>({
     signal,
     beforeRequest,
     afterRequest,
+    silent,
   })
 }
 

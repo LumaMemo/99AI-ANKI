@@ -70,6 +70,7 @@ export const useGlobalStore = defineStore('global-store', {
     workflowContent: [],
     markdownContent: '',
     isMarkdownPreviewerVisible: false,
+    showKnowledgeBase: false,
   }),
 
   actions: {

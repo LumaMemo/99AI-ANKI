@@ -30,9 +30,13 @@ export const useChatStore = defineStore('chat-store', {
       const uuid = state.active
       if (!uuid) return {}
       const config = state.groupList.find(item => item.uuid === uuid)?.config
-      const parsedConfig = config ? JSON.parse(config) : state.baseConfig
-
-      return parsedConfig
+      if (!config) return state.baseConfig
+      try {
+        return JSON.parse(config)
+      }
+      catch {
+        return state.baseConfig
+      }
     },
 
     activeGroupAppId: state => {
@@ -123,13 +127,21 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     /* 新增新的对话组 */
-    async addNewChatGroup(appId = 0, modelConfig?: any, params?: string) {
+    async addNewChatGroup(
+      appId = 0,
+      modelConfig?: any,
+      params?: string,
+      options?: { silent?: boolean }
+    ) {
       try {
-        const res: any = await fetchCreateGroupAPI({
+        const res: any = await fetchCreateGroupAPI(
+          {
           appId,
           modelConfig,
           params,
-        })
+          },
+          { silent: options?.silent }
+        )
 
         this.active = res.data.id
         this.usingNetwork = false
@@ -137,10 +149,38 @@ export const useChatStore = defineStore('chat-store', {
         this.usingMcpTool = false
         this.recordState()
 
-        await this.queryMyGroup()
+        await this.queryMyGroup({ silent: options?.silent })
 
-        await this.setActiveGroup(res.data.id)
+        await this.setActiveGroup(res.data.id, { silent: options?.silent })
+        return res.data.id
       } catch (error) {}
+    },
+
+    /** 确保当前激活的是“笔记生成”类型对话组；若没有则创建一个 */
+    async ensureNoteGenGroupActive() {
+      const currentConfig = this.activeConfig
+      if (currentConfig?.isNoteGen && this.active) return this.active
+
+      // 入口场景：创建/激活对话组是“尽力而为”，失败不应阻断页面跳转，也不应弹出误导性的全局错误。
+      const groupId = await this.addNewChatGroup(0, { isNoteGen: true }, undefined, { silent: true })
+      if (!groupId) return
+
+      try {
+        await this.updateGroupInfo(
+          {
+            groupId,
+            title: '笔记生成',
+            config: JSON.stringify({ isNoteGen: true }),
+          },
+          { silent: true }
+        )
+      } catch {}
+
+      try {
+        await this.setActiveGroup(groupId, { silent: true })
+      } catch {}
+
+      return groupId
     },
 
     /* 查询基础模型配置  */
@@ -150,8 +190,8 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     /* 查询我的对话组 */
-    async queryMyGroup() {
-      const res: any = await fetchQueryGroupAPI()
+    async queryMyGroup(options?: { silent?: boolean }) {
+      const res: any = await fetchQueryGroupAPI({ silent: options?.silent })
       this.groupList = [
         ...res.data.map((item: any) => {
           const {
@@ -204,28 +244,32 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     /* 修改对话组信息 */
-    async updateGroupInfo(params: {
+    async updateGroupInfo(
+      params: {
       groupId: number
       title?: string
       isSticky?: boolean
+      config?: string
       fileUrl?: string
-    }) {
-      await fetchUpdateGroupAPI(params)
-      await this.queryMyGroup()
+      },
+      options?: { silent?: boolean }
+    ) {
+      await fetchUpdateGroupAPI(params, { silent: options?.silent })
+      await this.queryMyGroup({ silent: options?.silent })
     },
 
     /* 变更对话组 */
     // 设置当前激活的对话组
-    async setActiveGroup(uuid: number) {
+    async setActiveGroup(uuid: number, options?: { silent?: boolean }) {
       useGlobalStore.updateShowAppListComponent(false)
       // useGlobalStore.updateImagePreviewer(false)
       // this.chatList = [];
       this.active = uuid
 
       this.groupList.forEach(item => (item.isEdit = false))
-      await this.queryActiveChatLogList()
+      await this.queryActiveChatLogList({ silent: options?.silent })
       if (this.active) {
-        await this.queryActiveChatLogList()
+        await this.queryActiveChatLogList({ silent: options?.silent })
       } else {
         this.chatList = []
       }
@@ -276,7 +320,7 @@ export const useChatStore = defineStore('chat-store', {
 
     /* 查询当前对话组的聊天记录 */
     /* 查询当前对话组的聊天记录 */
-    async queryActiveChatLogList() {
+    async queryActiveChatLogList(options?: { silent?: boolean }) {
       // 如果没有激活的对话组，或者 groupId 为 0，则不进行查询
       if (!this.active || Number(this.active) === 0) {
         this.chatList = [] // 确保没有数据时清空 chatList
@@ -287,7 +331,7 @@ export const useChatStore = defineStore('chat-store', {
         // 调用 API 查询聊天记录
         const res: any = await fetchQueryChatLogListAPI({
           groupId: this.active,
-        })
+        }, { silent: options?.silent })
 
         // 检查响应数据并更新 chatList
         if (res && res.data) {
@@ -385,15 +429,47 @@ export const useChatStore = defineStore('chat-store', {
     /* 创建生成笔记任务 */
     async createNoteGenJob(kbPdfId: number) {
       try {
+        // 先确保有一个“笔记生成”对话组（用于在左侧历史中展示，并承载 jobId/pdf 信息）
+        const noteGenGroupId = await this.ensureNoteGenGroupActive()
+
         const res = await fetchCreateNoteGenJob({
           kbPdfId,
           pageRange: { mode: 'all' },
         })
         // @ts-ignore
         if (res.success || res.code === 200) {
-          this.activeNoteGenJob = res.data
+          const jobData = res.data
+          this.activeNoteGenJob = jobData
+
+          const pdfName = this.selectedKbPdfName || '未知文件'
+          const targetGroupId = noteGenGroupId || this.active
+          if (targetGroupId) {
+            const nextConfig = {
+              ...(this.activeConfig || {}),
+              isNoteGen: true,
+              jobId: jobData.jobId,
+              pdfId: kbPdfId,
+              pdfName,
+            }
+            // 更新对话组信息是附加体验（标题/恢复状态）；失败不应误报全局 Internal server error。
+            try {
+              await this.updateGroupInfo(
+                {
+                  groupId: targetGroupId,
+                  title: `笔记生成: ${pdfName}`,
+                  config: JSON.stringify(nextConfig),
+                },
+                { silent: true }
+              )
+            } catch {}
+
+            try {
+              await this.setActiveGroup(targetGroupId, { silent: true })
+            } catch {}
+          }
+
           this.recordState()
-          return res.data
+          return jobData
         }
         else {
           // @ts-ignore

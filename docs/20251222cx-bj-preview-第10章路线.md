@@ -8,17 +8,20 @@
 ## 1. 现状调研与复用分析
 
 ### 1.1 当前已完成
+
 - **Chat Footer 基础设施**：已存在 `usingNetwork`、`usingDeepThinking` 等 pill 按钮及其样式（`btn-pill`）。
 - **知识库（KB）管理**：已实现 `KnowledgeBaseReadonly.vue` 抽屉，支持 PDF 列表展示、上传、重命名、删除。
 - **后端 API 契约**：第 5 章已定义 `/note-gen` 系列接口。
 - **图标库**：已引入 `@icon-park/vue-next`。
 
 ### 1.2 可复用部分
+
 - **UI 样式**：复用 `Footer/index.vue` 中的 pill 按钮布局与动画。
 - **KB 列表**：复用 `KnowledgeBaseReadonly.vue` 的文件加载逻辑。
 - **状态管理**：复用 `chatStore` 进行全局状态同步。
 
 ### 1.3 需要添加/修改
+
 - **Store 扩展**：在 `chatStore` 中新增 `selectedKbPdfId`（当前选中的 PDF）和 `activeNoteGenJob`（当前正在运行的任务）。
 - **KB 交互修改**：在 KB 抽屉的 PDF 列表中增加“选择”动作，将 PDF ID 存入 Store。
 - **新 API 模块**：新增 `src/api/noteGen.ts`。
@@ -31,6 +34,7 @@
 ## 2. 详细开发步骤
 
 ### 步骤 10.1：API 定义与 Store 状态初始化 (已完成)
+
 **目标**：建立前端与后端的通信桥梁，并准备好状态存储。
 
 - **修改代码**：
@@ -43,6 +47,7 @@
   - **自检**：无新依赖，兼容旧数据，无安全隐患。
 
 ### 步骤 10.2：KB PDF 选择逻辑实现 (已完成)
+
 **目标**：允许用户从知识库中“点选”一个 PDF 作为生成目标。
 
 - **修改代码**：
@@ -54,68 +59,111 @@
   - 打开 KB 抽屉，点击一个 PDF 的“选择”按钮。
   - 预期：抽屉关闭（或提示已选中），Store 中的 `selectedKbPdfId` 变为该文件 ID。
 
-### 步骤 10.3：Footer 触发按钮（NoteGenPill）
-**目标**：在 Chat 输入框上方增加“生成笔记”按钮，采用 iOS App 风格图标。
+### 步骤 10.3：触发按钮和新笔记界面 (已完成)
 
+**目标**：入口不放在 Footer pill 区域；改为“新对话页（Chat 主容器 glass-card）左上角”的一个独立 App 图标入口。点击后进入“笔记生成专用新页面”，在该页面内完成配置、发起任务、轮询、下载（10.3~10.5 都在同一页）。
+
+- **改动原则（强约束）**：
+
+  - **入口位置**：放在 `chatBase.vue` 的主容器 `glass-card relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform` 这一层内的左上角（绝对定位覆盖在内容上方）。
+  - **独立页面**：笔记生成页与当前对话页**分离**；不会把进度卡片塞回消息流（不改 Message 列表渲染）。
+  - **不与“图表/深度思考/联网”同一组**：不放在 Footer 的 pill 工具区。
 - **修改代码**：
-  - 修改 `chat/src/views/chat/components/Footer/index.vue`：
-    - 引入 `Notes` 或自定义 iOS 风格图标。
-    - 在 `shouldShowMermaidTool` 之后增加 `NoteGenPill` 块。
-    - **UI 要求**：采用 iOS App 风格的图标设计（Squircle 圆角矩形、微阴影、毛玻璃背景或渐变色）；在排版缩小（移动端）时，图标应保持可见并适当缩放，不被隐藏。
-    - **功能要求**：默认生成 2 种形式（Markdown/Markmap 和 Word）。
-    - 点击逻辑：
-      1. 检查 `selectedKbPdfId`，若无则弹出 Toast 提示“请先在知识库中选择一个 PDF”。
-      2. 调用 `POST /note-gen/jobs`。
-      3. 若返回 400（余额不足），弹出充值提示。
-      4. 若成功，将返回的 `jobId` 存入 Store 并开启轮询。
+
+  1. 路由结构（已按现状落地）：
+    - `chat/src/utils/router.ts` 使用**嵌套路由**：`/` 作为布局容器（`chat.vue`），子路由 `''` 为聊天页（`chatBase.vue`），`note-gen` 为笔记生成页（`noteGen/index.vue`）。
+    - 这样笔记生成页与聊天页**同布局同尺寸**，并共享左侧历史侧栏。
+
+  2. 新入口组件（已按现状落地）：
+    - 在 `chat/src/views/chat/chatBase.vue` 的 glass-card 容器内加入 `NoteGenAppIcon`（iOS App 风格）。
+    - 点击行为：尽力创建/激活一个“笔记生成”对话组（让它立刻出现在左侧历史），然后 `router.push('/note-gen')`。
+
+  3. 笔记生成专用页面（已按现状落地）：
+    - `chat/src/views/noteGen/index.vue` 展示“已选择的 PDF 信息”（名称/ID）与“固定配置”。
+    - 若未选 PDF，会自动打开知识库抽屉，方便选择；并提供“开始生成笔记”按钮。
+    - 右上角补齐与聊天页一致的“主题切换 + 新建对话”（复用布局层提供的 `createNewChatGroup`）。
+
+  4. 知识库抽屉控制（为满足 10.3 的自动弹出而做的工程化改动）：
+    - `KnowledgeBaseReadonly.vue` 的 `visible` 状态提升到 `globalStore.showKnowledgeBase`，并 Teleport 到 `body`，避免层级/transform 导致遮罩不生效。
+    - 为了符合“进入笔记生成页不应自动刷接口”的体验，知识库数据加载改为**抽屉打开时再加载**（lazy-load）。
+- **开始生成按钮逻辑（在笔记生成页内）**：
+
+  1. 若 `selectedKbPdfId` 不存在：Toast 提示“请先在知识库中选择一个 PDF”，并保持/再次打开知识库侧边栏。
+  2. 调用 `POST /note-gen/jobs`（`kbPdfId` + `pageRange:{mode:'all'}`）。
+  3. 若返回 400（余额不足门槛）：弹出充值提示。
+  4. 成功：将 `jobId` 写入 Store（`activeNoteGenJob`），并进入轮询阶段（10.4）。
 - **验证脚本**：
-  - 未选 PDF 时点击：提示“请先选择 PDF”。
-  - 已选 PDF 时点击：观察 Network 面板是否发出 `POST /note-gen/jobs` 请求。
-  - 缩放浏览器窗口：确认图标在小屏幕下依然存在且排版正常。
+
+  - 打开一个“新对话页”，确认左上角出现“笔记生成 App 图标”。
+  - 点击图标：进入笔记生成专用页面；若未选择 PDF，页面会自动打开知识库抽屉。
+  - 不选 PDF 直接点“开始生成”：提示“请先在知识库中选择一个 PDF”。
+  - 选中 PDF 后点击“开始生成”：Network 发出 `POST /note-gen/jobs`。
+  - 缩放浏览器/切换移动端：图标仍可见且不遮挡核心交互。
+
+> 说明：进入笔记生成页可能会触发“创建/同步对话组、拉历史聊天记录”等请求（用于左侧历史与状态恢复），但不会触发 `POST /note-gen/jobs`；真正的生成任务只在点击“开始生成笔记”时发起。
 
 ### 10.4：进度轮询与 6 段进度条展示
-**目标**：实时展示任务进度，并处理“退出重进”的进度恢复。
+
+**目标**：进度展示只在“笔记生成专用页面”内渲染；支持“退出重进”恢复（重新进入专用页能继续看到并轮询同一个 job）。
 
 - **修改代码**：
-  - 修改 `chat/src/views/chat/chatBase.vue` 或 `Message/index.vue`：
-    - 增加一个特殊的“系统消息卡片”或“顶部浮层”展示进度。
-    - 进度条逻辑：`progressPercent` 映射到 6 段 UI（16.6% 步进）。
-    - 轮询逻辑：`setInterval` 每 60 秒调用一次 `GET /note-gen/jobs/:jobId`。
-    - 状态映射：`processing` 展示进度条；`failed/incomplete` 展示错误文案与“重试”按钮。
+
+  - 在笔记生成专用页面新增 `NoteGenStatusCard`（或同名组件）：
+    - 进度条：6 段式（每段 16.6% 视觉步进），仅展示 0~100% 数字，不暴露内部步骤含义。
+    - 状态映射：
+      - `processing/created`：显示进度条与“手动刷新”按钮。
+      - `failed/incomplete`：显示后端 `userMessage`（若有）与“重试/再次发起生成”按钮（重试语义：再次调用创建任务接口，后端幂等/断点续跑接管）。
+  - 轮询逻辑：
+    - 在专用页 `onMounted`：若存在 `activeNoteGenJob.jobId`，立即拉一次 `GET /note-gen/jobs/:jobId`。
+    - 自动轮询：`setInterval` 每 60 秒刷新一次；离开页面 `onUnmounted` 清理定时器。
+    - 手动刷新：立即触发一次 `GET`。
 - **验证脚本**：
-  - 发起任务后，观察 UI 是否出现进度条。
-  - 手动修改数据库 `progressPercent` 为 33，观察前端是否跳到第二段。
+
+  - 在专用页发起任务后，确认出现 6 段进度条。
+  - 手动刷新：确认会触发一次 `GET /note-gen/jobs/:jobId`。
+  - 退出专用页再进入：进度仍可恢复展示，并继续轮询。
+  - 手动修改 DB `progressPercent=33`：前端进度条应跳到第 2 段。
 
 ### 10.5：结果下载笔记
-**目标**：任务完成后，交付 Markdown 和 Word 下载链接。
+
+**目标**：下载交付只在“笔记生成专用页面”内完成；完成态展示两个下载按钮（Markdown/Markmap 与 Word）。
 
 - **修改代码**：
-  - 修改进度展示组件：当 `status === 'completed'` 时，切换为“下载笔记”模式。
-  - 展示两个按钮：`[下载 Markdown/思维导图]`、`[下载 Word 笔记]`。
-  - 点击下载逻辑：
-    1. 调用 `GET /note-gen/jobs/:jobId/files/:type/signed-url`。
-    2. 拿到 URL 后，使用 `window.open(url)` 或创建 `<a>` 标签触发下载。
+
+  - 在 `NoteGenStatusCard` 中，当 `status === 'completed'` 时切换到“下载笔记”模式：
+    - 展示两个按钮：`[下载 Markdown/思维导图]`、`[下载 Word 笔记]`。
+    - 点击下载逻辑（与第 5 章契约对齐）：
+      1. 调用 `GET /note-gen/jobs/:jobId/files/:fileType/signed-url`（`fileType` 为 `markdown-markmap` 或 `word`）。
+      2. 拿到 `{ url }` 后，使用 `window.open(url)` 或创建 `<a>` 标签触发下载。
+  - 注意：`GET /note-gen/jobs/:jobId` 不返回签名 URL，避免轮询导致 URL 过期/浪费。
 - **验证脚本**：
-  - 任务完成后，点击下载按钮。
-  - 预期：浏览器开始下载对应的 `.md` 或 `.docx` 文件。
+
+  - 将 job 状态置为 `completed` 且 artifacts ready：专用页出现两个下载按钮。
+  - 点击下载：Network 先请求 signed-url，随后浏览器开始下载 `.md` 或 `.docx`。
 
 ---
 
 ## 3. 关键代码修改清单
 
-| 文件路径 | 修改内容 |
-| :--- | :--- |
-| `src/api/noteGen.ts` | 新增 3 个核心接口函数 |
-| `src/store/modules/chat/index.ts` | 增加 `selectedKbPdfId` 状态及 `createNoteGenJob` action |
-| `src/views/chat/components/sider/KnowledgeBaseReadonly.vue` | 增加 PDF 选择交互 |
-| `src/views/chat/components/Footer/index.vue` | 增加“生成笔记”Pill 按钮及触发逻辑 |
-| `src/views/chat/components/Message/NoteGenCard.vue` | (新增) 专门用于展示进度与下载的卡片组件 |
+| 文件路径                                                      | 修改内容                                                    |
+| :------------------------------------------------------------ | :---------------------------------------------------------- |
+| `src/api/noteGen.ts`                                        | 新增 3 个核心接口函数                                       |
+| `src/store/modules/chat/index.ts`                           | 增加 `selectedKbPdfId` 状态及 `createNoteGenJob` action |
+| `src/views/chat/components/sider/KnowledgeBaseReadonly.vue` | 增加 PDF 选择交互；抽屉可全局打开；打开时再加载（lazy-load） |
+| `chat/src/utils/router.ts`                                  | 嵌套路由：`chat.vue` 布局 + 子路由 `Chat`/`NoteGen`         |
+| `chat/src/views/chat/chat.vue`                              | 作为布局容器承载 Sider + `<router-view>`；按激活组自动切换 `/note-gen` |
+| `chat/src/views/chat/chatBase.vue`                          | 在 glass-card 左上角增加“笔记生成 App 图标”入口             |
+| `chat/src/views/chat/components/NoteGenAppIcon.vue`         | (新增) App 图标入口组件，点击跳转 `/note-gen`               |
+| `chat/src/views/noteGen/index.vue`                          | (新增) 笔记生成专用页面：配置/开始生成/轮询/下载闭环 + 右上角按钮 |
+| `chat/src/views/noteGen/components/NoteGenStatusCard.vue`   | (新增) 6 段进度条 + 下载按钮                                |
+| `chat/src/utils/request/index.ts`                           | 支持 `silent`：用于“非关键并行请求失败不误报全局 toast”     |
 
 ---
 
 ## 4. 验证方法
 
 ### 4.1 接口测试 (Curl)
+
 ```bash
 # 模拟创建任务 (需替换 JWT Token 和 kbPdfId)
 curl -X POST http://localhost:3000/api/note-gen/jobs \
@@ -125,11 +173,12 @@ curl -X POST http://localhost:3000/api/note-gen/jobs \
 ```
 
 ### 4.2 UI 交互测试
-1. 登录后打开左侧“知识库”。
-2. 点击一个 PDF 旁边的“选择”图标。
-3. 在 Chat Footer 看到“生成笔记”按钮变为可用状态。
-4. 点击按钮，观察聊天区域是否出现“正在生成笔记 (16%)”的卡片。
-5. 等待（或手动修改 DB 状态为 completed），确认出现下载按钮。
+
+1. 打开一个“新对话页”，点击左上角“笔记生成 App 图标”，进入笔记生成专用页面。
+2. 进入后自动弹出左侧“知识库”，选择一个 PDF。
+3. 在专用页点击“开始生成笔记”，观察是否发出 `POST /note-gen/jobs`。
+4. 专用页出现 6 段进度条；等待（或手动修改 DB）观察进度更新。
+5. 状态为 completed 后，专用页出现两个下载按钮，点击可下载 `.md` 与 `.docx`。
 
 ---
 

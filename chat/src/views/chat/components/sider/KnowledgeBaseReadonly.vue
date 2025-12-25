@@ -12,11 +12,11 @@ import {
   retryDeleteKbFileAPI,
   uploadKbPdfAPI,
 } from '../../../../api/kb'
-import { useAuthStore, useChatStore } from '../../../../store'
+import { useAuthStore, useChatStore, useGlobalStoreWithOut } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
 import { Close, CheckOne } from '@icon-park/vue-next'
 import { dialog } from '../../../../utils/dialog'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 interface FolderTreeNode {
   id: number
@@ -34,6 +34,11 @@ interface PdfRow {
   createdAt: string
 }
 
+const props = defineProps<{
+  hideTrigger?: boolean
+}>()
+
+const useGlobalStore = useGlobalStoreWithOut()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const isLogin = computed(() => authStore.isLogin)
@@ -41,7 +46,10 @@ const isLogin = computed(() => authStore.isLogin)
 const { isSmallMd: isMobile } = useBasicLayout()
 const dlg = dialog()
 
-const visible = ref(false)
+const visible = computed({
+  get: () => useGlobalStore.showKnowledgeBase,
+  set: (val) => useGlobalStore.showKnowledgeBase = val
+})
 
 const loading = ref(false)
 const loadError = ref<string | null>(null)
@@ -171,9 +179,6 @@ async function refreshAll(showToast = false) {
 function openPane() {
   if (!isLogin.value) return
   visible.value = true
-  nextTick(() => {
-    loadAll()
-  })
 }
 
 function closePane() {
@@ -446,8 +451,7 @@ watch(
 watch(
   () => authStore.isLogin,
   val => {
-    if (val) loadAll()
-    else {
+    if (!val) {
       folderTree.value = null
       files.value = []
       quotaBytes.value = 0
@@ -459,15 +463,20 @@ watch(
   { immediate: true }
 )
 
-onMounted(() => {
-  loadAll()
-})
+// 仅在打开抽屉时加载，避免“进入页面就发请求”的体验问题。
+watch(
+  visible,
+  val => {
+    if (val) loadAll()
+  },
+  { immediate: false }
+)
 </script>
 
 <template>
   <div>
     <!-- 顶部入口按钮（常置顶） -->
-    <div class="px-4 pt-3">
+    <div v-if="!hideTrigger" class="px-4 pt-3">
       <button
         type="button"
         class="w-full text-left glass rounded-2xl p-3 border border-[color:var(--glass-border)] hover:bg-[color:var(--glass-bg-secondary)] transition-[background]"
@@ -501,7 +510,7 @@ onMounted(() => {
     <!-- 左侧抽屉（只读管理）：Teleport 到 body，确保是顶层覆盖层，不受侧边栏 transform 影响 -->
     <Teleport to="body">
       <transition name="kb-drawer">
-        <div v-if="visible" class="fixed inset-0 z-[9000]" aria-label="知识库抽屉">
+        <div v-if="visible" class="fixed inset-0 z-[9999]" aria-label="知识库抽屉">
           <!-- 遮罩 -->
           <div
             class="absolute inset-0 bg-black/40 backdrop-blur-sm"
