@@ -28,7 +28,17 @@ const manualRefreshing = ref(false)
 let timer: any = null
 
 const selectedPdfId = computed(() => chatStore.selectedKbPdfId)
-const selectedPdfName = computed(() => chatStore.selectedKbPdfName)
+const selectedPdfName = computed(() => {
+  const name = chatStore.selectedKbPdfName
+  if (!name)
+    return ''
+  try {
+    return decodeURIComponent(name)
+  }
+  catch {
+    return name
+  }
+})
 const activeJob = computed(() => chatStore.activeNoteGenJob)
 
 // 初始化逻辑：从当前激活的对话组配置中恢复状态
@@ -214,26 +224,30 @@ onUnmounted(() => {
         
         <!-- PDF 选择展示 -->
         <section class="glass-card p-8 rounded-3xl border border-[color:var(--glass-border)] shadow-lg">
-          <div class="flex items-start justify-between">
-            <div class="flex items-center gap-4">
-              <div class="w-16 h-16 flex items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
+              <div class="w-16 h-16 flex-shrink-0 flex items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500">
                 <FilePdf size="40" />
               </div>
-              <div>
-                <h3 class="text-lg font-bold text-[color:var(--text-primary)]">
+              <div class="min-w-0 flex-1">
+                <h3 class="text-lg font-bold text-[color:var(--text-primary)] truncate" :title="selectedPdfName">
                   {{ selectedPdfName || '未选择 PDF' }}
                 </h3>
-                <p class="text-sm text-[color:var(--text-tertiary)] mt-1">
+                <p class="text-sm text-[color:var(--text-tertiary)] mt-1 truncate">
                   {{ selectedPdfId ? `ID: ${selectedPdfId}` : '请从左侧知识库中选择一个文件' }}
                 </p>
               </div>
             </div>
             <button 
+              v-if="!activeJob"
               class="px-4 py-2 rounded-xl border border-blue-500 text-blue-500 hover:bg-blue-500 hover:text-white transition-all text-sm"
               @click="globalStore.showKnowledgeBase = true"
             >
               {{ selectedPdfId ? '重新选择' : '打开知识库' }}
             </button>
+            <div v-else class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-sm cursor-not-allowed bg-gray-50/50 dark:bg-gray-800/50">
+              已锁定
+            </div>
           </div>
         </section>
 

@@ -28,8 +28,9 @@ export function getLocalState(): Chat.ChatState {
   return { ...defaultState(), ...localState }
 }
 
-export function setLocalState({ active }: Chat.ChatState) {
-  ss.set(LOCAL_NAME, { ...ss.get(LOCAL_NAME), active })
+export function setLocalState(state: Chat.ChatState) {
+  const { active, groupList, selectedKbPdfId, selectedKbPdfName, activeNoteGenJob } = state
+  ss.set(LOCAL_NAME, { ...ss.get(LOCAL_NAME), active, groupList, selectedKbPdfId, selectedKbPdfName, activeNoteGenJob })
 }
 
 export function formatChatPre(data: any): any {

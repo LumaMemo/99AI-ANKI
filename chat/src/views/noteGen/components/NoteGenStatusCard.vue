@@ -101,6 +101,12 @@ function handleRetry() {
       </span>
     </div>
 
+    <!-- 后台运行提示 -->
+    <div v-if="status === 'processing' || status === 'created'" class="mb-8 p-4 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-2xl text-xs text-blue-500/80 flex items-start gap-2">
+      <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5"></span>
+      <p>任务正在后台处理中，您可以离开此页面进行其他操作。处理完成后，您可以随时回到此页面查看并下载笔记。</p>
+    </div>
+
     <!-- 错误/提示信息 -->
     <div v-if="userMessage" class="mb-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl text-sm text-orange-600 dark:text-orange-400">
       {{ userMessage }}
