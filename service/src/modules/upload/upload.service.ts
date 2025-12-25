@@ -509,4 +509,48 @@ export class UploadService implements OnModuleInit {
     const mimeType = response.headers['content-type'];
     return { buffer, mimeType };
   }
+
+  /* 获取 COS 签名 URL */
+  async getSignedUrl(fileUrl: string) {
+    if (!fileUrl || !fileUrl.includes('myqcloud.com')) return fileUrl;
+
+    try {
+      const { Bucket, Region, SecretId, SecretKey } = await this.getUploadConfig('tencent');
+      if (!SecretId || !SecretKey) return fileUrl;
+
+      const cos = new TENCENTCOS({
+        SecretId,
+        SecretKey,
+      });
+
+      // 增加异常捕获，防止非法 URL 导致程序崩溃
+      let key = '';
+      try {
+        const urlObj = new URL(fileUrl);
+        key = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+      } catch (e) {
+        return fileUrl;
+      }
+
+      if (!key) return fileUrl;
+
+      return new Promise((resolve, reject) => {
+        cos.getObjectUrl(
+          {
+            Bucket: removeSpecialCharacters(Bucket),
+            Region: removeSpecialCharacters(Region),
+            Key: key,
+            Sign: true,
+            Expires: 3600, // 1小时有效期
+          },
+          (err, data) => {
+            if (err) return resolve(fileUrl);
+            return resolve(data.Url);
+          },
+        );
+      });
+    } catch (error) {
+      return fileUrl;
+    }
+  }
 }

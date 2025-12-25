@@ -100,7 +100,9 @@ export class NoteGenService {
     // userId + kbPdfId + pipelineKey + pageRangeJson + configId + configVersion + pdfEtag
     const pipelineKey = 'generate-notes';
     const pageRangeJson = JSON.stringify(pageRange);
-    const rawKey = `${userId}-${kbPdfId}-${pipelineKey}-${pageRangeJson}-${config.id}-${config.version}-${kbPdf.etag || ''}`;
+    const rawKey = `${userId}-${kbPdfId}-${pipelineKey}-${pageRangeJson}-${config.id}-${
+      config.version
+    }-${kbPdf.etag || ''}`;
     const idempotencyKey = createHash('sha256').update(rawKey).digest('hex');
 
     // 4. 检查是否存在相同幂等键的 Job
@@ -110,7 +112,7 @@ export class NoteGenService {
     if (existingJob) {
       // 如果任务已存在但未完成，尝试再次触发 Worker（幂等触发）
       if (['created', 'failed', 'incomplete'].includes(existingJob.status)) {
-        this.triggerWorker(existingJob).catch((err) => {
+        this.triggerWorker(existingJob).catch(err => {
           this.logger.error(
             `Failed to re-trigger worker for existing job ${existingJob.jobId}: ${err.message}`,
           );
@@ -158,7 +160,7 @@ export class NoteGenService {
     const savedJob = await this.noteGenJobRepo.save(newJob);
 
     // 6. 异步触发 Worker
-    this.triggerWorker(savedJob).catch((err) => {
+    this.triggerWorker(savedJob).catch(err => {
       this.logger.error(`Failed to trigger worker for job ${jobId}: ${err.message}`, err.stack);
     });
 
@@ -170,7 +172,10 @@ export class NoteGenService {
    */
   private async triggerWorker(job: NoteGenJobEntity) {
     // 1. 获取 Worker 配置
-    const configs = await this.globalConfigService.getConfigs(['noteGenWorkerUrl', 'noteGenWorkerToken']);
+    const configs = await this.globalConfigService.getConfigs([
+      'noteGenWorkerUrl',
+      'noteGenWorkerToken',
+    ]);
     const url = configs?.noteGenWorkerUrl || 'http://127.0.0.1:8000/api/pdf-note/generate-notes';
     const token = configs?.noteGenWorkerToken || 'devtoken';
 
@@ -260,7 +265,7 @@ export class NoteGenService {
       const artifacts = await this.noteGenJobArtifactRepo.find({
         where: { jobId, status: 'ready' },
       });
-      result.resultFiles = artifacts.map((art) => ({
+      result.resultFiles = artifacts.map(art => ({
         type: art.type,
         status: art.status,
         fileName: art.fileName,

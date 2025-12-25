@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchSendSms, fetchUpdateInfoAPI, fetchUpdatePasswordAPI } from '@/api'
 import type { ResData } from '@/api/types'
+import { uploadFile } from '@/api/upload'
 import {
   fetchBindWxBySceneStrAPI,
   fetchGetQRCodeAPI,
@@ -62,11 +63,68 @@ const oldWechatMigrationStatus = computed(
 // 登录状态检测
 const isLogin = computed(() => authStore.isLogin)
 
+// 头像上传相关
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+
+const handleAvatarClick = () => {
+  if (uploadingAvatar.value) return
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // 1. 校验文件类型
+  if (!file.type.startsWith('image/')) {
+    ms.error('请上传图片文件')
+    if (fileInputRef.value) fileInputRef.value.value = ''
+    return
+  }
+
+  // 2. 校验文件大小 (2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    ms.error('图片大小不能超过 2MB')
+    if (fileInputRef.value) fileInputRef.value.value = ''
+    return
+  }
+
+  try {
+    uploadingAvatar.value = true
+
+    // 3. 上传文件
+    const res = await uploadFile(file)
+
+    if (res.code === 200 && res.data) {
+      const avatarUrl = res.data
+      // 4. 更新用户信息
+      await fetchUpdateInfoAPI({ avatar: avatarUrl })
+
+      // 5. 刷新本地状态
+      await authStore.getUserInfo()
+      ms.success('头像修改成功')
+    } else {
+      ms.error(res.message || '头像上传失败')
+    }
+  } catch (error) {
+    console.error('头像上传异常:', error)
+    ms.error('头像上传失败，请重试')
+  } finally {
+    uploadingAvatar.value = false
+    if (fileInputRef.value) {
+      fileInputRef.value.value = ''
+    }
+  }
+}
+
 // 密码修改相关
 const passwordForm = reactive({
   newPassword: '',
   confirmPassword: '',
 })
+
 const passwordError = ref('')
 const reenteredPasswordError = ref('')
 const isPasswordUpdating = ref(false)
@@ -693,12 +751,39 @@ const identityStatus = computed(() => (realName.value ? 'verified' : 'unverified
         <!-- 头像展示 -->
         <div class="flex items-center">
           <div class="w-20 text-[color:var(--text-tertiary)]">头像</div>
-          <!-- <div>
-            <img :src="avatar" alt="头像" class="w-20 h-20 rounded-full cursor-pointer" />
-          </div> -->
-          <div class="avatar avatar-lg avatar-bordered avatar-primary">
-            <img v-if="avatar" :src="avatar" class="w-full h-full object-cover" alt="用户头像" />
-            <User v-if="!avatar" theme="outline" size="20" class="text-white" aria-hidden="true" />
+          <div class="relative group cursor-pointer" @click="handleAvatarClick">
+            <div
+              class="avatar avatar-lg avatar-bordered avatar-primary transition-all duration-300 group-hover:opacity-80"
+            >
+              <img v-if="avatar" :src="avatar" class="w-full h-full object-cover" alt="用户头像" />
+              <User v-if="!avatar" theme="outline" size="20" class="text-white" aria-hidden="true" />
+            </div>
+
+            <!-- Hover 遮罩提示 -->
+            <div
+              class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            >
+              <span class="text-white text-xs">修改</span>
+            </div>
+
+            <!-- 上传中 Loading -->
+            <div
+              v-if="uploadingAvatar"
+              class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-full"
+            >
+              <div
+                class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600 dark:border-primary-400"
+              ></div>
+            </div>
+
+            <!-- 隐藏的文件输入框 -->
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleFileChange"
+            />
           </div>
         </div>
 

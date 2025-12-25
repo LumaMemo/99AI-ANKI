@@ -22,6 +22,7 @@ import { UpdateUserDto } from './dto/updateUser.dto';
 import { UpdateUserStatusDto } from './dto/updateUserStatus.dto';
 import { UserRechargeDto } from './dto/userRecharge.dto';
 import { UserEntity } from './user.entity';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class UserService {
@@ -35,6 +36,7 @@ export class UserService {
     private readonly globalConfigService: GlobalConfigService,
     @InjectRepository(ConfigEntity)
     private readonly configEntity: Repository<ConfigEntity>,
+    private readonly uploadService: UploadService,
   ) {}
 
   /* create and verify */
@@ -271,6 +273,11 @@ export class UserService {
 
     if (!userInfo) {
       throw new HttpException('当前用户信息失效、请重新登录！', HttpStatus.UNAUTHORIZED);
+    }
+
+    // 处理头像签名
+    if (userInfo.avatar) {
+      userInfo.avatar = await this.uploadService.getSignedUrl(userInfo.avatar);
     }
 
     userInfo.isBindWx = !!userInfo?.openId;

@@ -100,8 +100,7 @@ export class KbService {
     const prefix = prefixRaw || DEFAULT_KB_COS_PREFIX;
 
     const expiresOptional = this.toPositiveIntOrUndefined(raw?.kbCosSignedUrlExpiresSeconds);
-    const signedUrlExpiresSeconds =
-      expiresOptional ?? DEFAULT_KB_COS_SIGNED_URL_EXPIRES_SECONDS;
+    const signedUrlExpiresSeconds = expiresOptional ?? DEFAULT_KB_COS_SIGNED_URL_EXPIRES_SECONDS;
 
     const maxBytesOptional = this.toPositiveIntOrUndefined(raw?.kbSinglePdfMaxBytes);
     const singlePdfMaxBytes = maxBytesOptional ?? DEFAULT_KB_SINGLE_PDF_MAX_BYTES;
@@ -147,7 +146,9 @@ export class KbService {
 
     if (missingKeys.length > 0) {
       throw new BadRequestException(
-        `知识库腾讯云 COS 配置缺失：${missingKeys.join(', ')}。请在后台系统的 config 表补齐这些 configKey`,
+        `知识库腾讯云 COS 配置缺失：${missingKeys.join(
+          ', ',
+        )}。请在后台系统的 config 表补齐这些 configKey`,
       );
     }
 
@@ -234,7 +235,10 @@ export class KbService {
   }
 
   async getFoldersTree(userId: number): Promise<KbFolderTreeNodeDto> {
-    const folders = await this.folderRepo.find({ where: { userId }, order: { sortOrder: 'ASC', id: 'ASC' } });
+    const folders = await this.folderRepo.find({
+      where: { userId },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
 
     const byId = new Map<number, KbFolderTreeNodeDto>();
     for (const folder of folders) {
@@ -299,7 +303,9 @@ export class KbService {
     if (!folder) throw new NotFoundException('文件夹不存在');
 
     // 同级不重名
-    const sibling = await this.folderRepo.findOne({ where: { userId, parentId: folder.parentId, name } });
+    const sibling = await this.folderRepo.findOne({
+      where: { userId, parentId: folder.parentId, name },
+    });
     if (sibling && sibling.id !== folder.id) throw new BadRequestException('同级已存在同名文件夹');
 
     // 计算新 path
@@ -386,7 +392,7 @@ export class KbService {
     const [rows, count] = await qb.getManyAndCount();
 
     return {
-      rows: rows.map((r) => ({
+      rows: rows.map(r => ({
         id: r.id,
         folderId: r.folderId,
         displayName: r.displayName,
@@ -400,7 +406,8 @@ export class KbService {
   }
 
   private assertPdfUploadFileOrThrow(file: any) {
-    if (!file) throw new BadRequestException('未找到上传文件：请使用 multipart/form-data 的 file 字段');
+    if (!file)
+      throw new BadRequestException('未找到上传文件：请使用 multipart/form-data 的 file 字段');
     // multer 对 multipart header 的 filename 解析在不同客户端可能出现乱码：
     // 常见表现是 UTF-8 字节被当作 latin1 解码，导致中文变成“ã°ä¸…”这种。
     // 这里做一次 latin1 -> utf8 纠正；若本来就是 UTF-8，转换后结果不变或更接近原文。
@@ -598,7 +605,10 @@ export class KbService {
     }
   }
 
-  async getFileSignedUrl(userId: number, fileId: number): Promise<{ url: string; expiresAt: number }> {
+  async getFileSignedUrl(
+    userId: number,
+    fileId: number,
+  ): Promise<{ url: string; expiresAt: number }> {
     if (!userId) throw new BadRequestException('未登录');
     const id = Number.isFinite(fileId) ? Math.floor(fileId) : 0;
     if (!id) throw new BadRequestException('非法文件ID');

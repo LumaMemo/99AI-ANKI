@@ -18,6 +18,7 @@ import { VerificationService } from './../verification/verification.service';
 import { UserController } from './user.controller';
 import { UserEntity } from './user.entity';
 import { UserService } from './user.service';
+import { UploadService } from '../upload/upload.service';
 
 @Global()
 @Module({
