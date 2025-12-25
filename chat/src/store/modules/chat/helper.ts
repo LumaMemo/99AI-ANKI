@@ -17,6 +17,9 @@ export function defaultState(): Chat.ChatState {
     pluginList: [],
     prompt: '',
     reasoningText: '',
+    selectedKbPdfId: undefined,
+    selectedKbPdfName: undefined,
+    activeNoteGenJob: undefined,
   }
 }
 

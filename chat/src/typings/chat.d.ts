@@ -87,6 +87,9 @@ declare namespace Chat {
     activeModelPrice?: number
     activeGroupAppId?: number
     isStreamIn?: boolean
+    selectedKbPdfId?: number
+    selectedKbPdfName?: string
+    activeNoteGenJob?: any
     pluginList: []
     prompt?: string
     currentPlugin?: {

@@ -16,6 +16,7 @@ import {
 } from '@/api/chatLog'
 import { fetchModelBaseConfigAPI } from '@/api/models'
 import { fetchQueryPluginsAPI } from '@/api/plugin'
+import { fetchCreateNoteGenJob, fetchNoteGenJobDetail } from '@/api/noteGen'
 import { useGlobalStoreWithOut } from '@/store'
 
 const useGlobalStore = useGlobalStoreWithOut()
@@ -374,6 +375,52 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
+    /* 设置选中的知识库 PDF */
+    setSelectedKbPdf(id?: number, name?: string) {
+      this.selectedKbPdfId = id
+      this.selectedKbPdfName = name
+      this.recordState()
+    },
+
+    /* 创建生成笔记任务 */
+    async createNoteGenJob(kbPdfId: number) {
+      try {
+        const res = await fetchCreateNoteGenJob({
+          kbPdfId,
+          pageRange: { mode: 'all' },
+        })
+        // @ts-ignore
+        if (res.success || res.code === 200) {
+          this.activeNoteGenJob = res.data
+          this.recordState()
+          return res.data
+        }
+        else {
+          // @ts-ignore
+          throw new Error(res.message || '创建任务失败')
+        }
+      }
+      catch (error) {
+        return Promise.reject(error)
+      }
+    },
+
+    /* 同步任务状态 */
+    async syncNoteGenJobStatus(jobId: string) {
+      try {
+        const res = await fetchNoteGenJobDetail(jobId)
+        // @ts-ignore
+        if (res.success || res.code === 200) {
+          this.activeNoteGenJob = res.data
+          this.recordState()
+          return res.data
+        }
+      }
+      catch (error) {
+        console.error('Sync note gen job status failed:', error)
+      }
+    },
+
     /* 删除当前对话组的全部内容 */
     async clearChatByGroupId() {
       if (!this.active) return
@@ -394,3 +441,4 @@ export const useChatStore = defineStore('chat-store', {
     },
   },
 })
+
