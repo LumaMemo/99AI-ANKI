@@ -12,9 +12,9 @@ import {
   retryDeleteKbFileAPI,
   uploadKbPdfAPI,
 } from '../../../../api/kb'
-import { useAuthStore } from '../../../../store'
+import { useAuthStore, useChatStore } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
-import { Close } from '@icon-park/vue-next'
+import { Close, CheckOne } from '@icon-park/vue-next'
 import { dialog } from '../../../../utils/dialog'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
@@ -35,6 +35,7 @@ interface PdfRow {
 }
 
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 const isLogin = computed(() => authStore.isLogin)
 // 聊天模块：将 640–767 也视为移动端（<md）
 const { isSmallMd: isMobile } = useBasicLayout()
@@ -388,6 +389,16 @@ async function previewPdfFile(f: PdfRow) {
   }
 }
 
+function selectPdfForNoteGen(f: PdfRow) {
+  if (!isLogin.value) return
+  if (Number(f?.status) === 2) {
+    window.alert('该文件正在删除中，无法选择')
+    return
+  }
+  chatStore.setSelectedKbPdf(f.id, f.displayName || f.originalName)
+  closePane()
+}
+
 const breadcrumb = computed(() => {
   const result: Array<{ id: number; name: string }> = []
   const byId = folderById.value
@@ -647,9 +658,13 @@ onMounted(() => {
                       <li v-for="f in files" :key="f.id">
                         <div
                           class="w-full flex items-center gap-3 px-3 py-2 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
+                          :class="{ 'bg-[color:var(--glass-bg-secondary)] border-[color:var(--glass-border)] ring-1 ring-[color:var(--btn-bg-primary)]': chatStore.selectedKbPdfId === f.id }"
                         >
-                          <div class="w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center">
+                          <div class="w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center relative">
                             <span class="text-[10px] font-bold text-[color:var(--text-tertiary)]">PDF</span>
+                            <div v-if="chatStore.selectedKbPdfId === f.id" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[color:var(--btn-bg-primary)] flex items-center justify-center text-white">
+                              <CheckOne size="10" />
+                            </div>
                           </div>
                           <div class="flex-1 min-w-0">
                             <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">{{ f.displayName || f.originalName }}</div>
@@ -661,6 +676,16 @@ onMounted(() => {
                           <div class="shrink-0 text-xs text-[color:var(--text-tertiary)]">{{ formatBytes(f.sizeBytes) }}</div>
 
                           <div class="shrink-0 flex items-center gap-2">
+                            <button
+                              type="button"
+                              class="text-xs font-bold text-[color:var(--btn-bg-primary)] hover:opacity-80"
+                              @click.stop="selectPdfForNoteGen(f)"
+                              :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
+                              :disabled="Number(f.status) === 2"
+                              aria-label="选择 PDF"
+                            >
+                              {{ chatStore.selectedKbPdfId === f.id ? '已选' : '选择' }}
+                            </button>
                             <button
                               type="button"
                               class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
