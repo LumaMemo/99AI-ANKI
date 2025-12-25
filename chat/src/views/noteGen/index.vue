@@ -24,6 +24,7 @@ function toggleTheme() {
 }
 
 const loading = ref(false)
+const manualRefreshing = ref(false)
 let timer: any = null
 
 const selectedPdfId = computed(() => chatStore.selectedKbPdfId)
@@ -31,7 +32,7 @@ const selectedPdfName = computed(() => chatStore.selectedKbPdfName)
 const activeJob = computed(() => chatStore.activeNoteGenJob)
 
 // 初始化逻辑：从当前激活的对话组配置中恢复状态
-function restoreStateFromConfig() {
+async function restoreStateFromConfig() {
   const config = chatStore.activeConfig
   if (config?.isNoteGen) {
     // 恢复选中的 PDF 信息
@@ -40,11 +41,7 @@ function restoreStateFromConfig() {
     }
     // 恢复任务信息
     if (config.jobId && (!chatStore.activeNoteGenJob || chatStore.activeNoteGenJob.jobId !== config.jobId)) {
-      chatStore.syncNoteGenJobStatus(config.jobId).then(() => {
-        if (chatStore.activeNoteGenJob?.status === 'processing' || chatStore.activeNoteGenJob?.status === 'created') {
-          startPolling()
-        }
-      })
+      await chatStore.syncNoteGenJobStatus(config.jobId)
     }
   }
   else {
@@ -56,12 +53,34 @@ function restoreStateFromConfig() {
 }
 
 onMounted(() => {
-  restoreStateFromConfig()
+  restoreStateFromConfig().finally(() => {
+    // 自动打开知识库
+    if (!selectedPdfId.value) {
+      globalStore.showKnowledgeBase = true
+    }
+
+    // 如果已有任务在运行，立即刷新并开始轮询
+    if (activeJob.value?.jobId && (activeJob.value.status === 'processing' || activeJob.value.status === 'created')) {
+      refreshStatus()
+      startPolling()
+    }
+    else {
+      stopPolling()
+    }
+  })
 })
 
 // 当激活的对话组变化时（且仍然在当前页面），同步状态
 watch(() => chatStore.active, () => {
-  restoreStateFromConfig()
+  restoreStateFromConfig().finally(() => {
+    if (activeJob.value?.jobId && (activeJob.value.status === 'processing' || activeJob.value.status === 'created')) {
+      refreshStatus()
+      startPolling()
+    }
+    else {
+      stopPolling()
+    }
+  })
 })
 
 // 当选择的 PDF 发生变化时，把 pdfId/pdfName 写回当前笔记生成对话组的配置中
@@ -102,18 +121,43 @@ async function handleStart() {
   }
 }
 
-async function refreshStatus() {
-  if (activeJob.value?.jobId) {
-    await chatStore.syncNoteGenJobStatus(activeJob.value.jobId)
-    if (activeJob.value.status === 'completed' || activeJob.value.status === 'failed') {
-      stopPolling()
+async function handleRetry() {
+  // “重试/再次发起生成”语义：再次调用创建任务接口，让后端幂等/断点续跑接管
+  await handleStart()
+}
+
+async function refreshStatus(silent = false) {
+  if (!activeJob.value?.jobId) return
+
+  try {
+    await chatStore.syncNoteGenJobStatus(activeJob.value.jobId, { silent })
+    if (activeJob.value.status === 'processing' || activeJob.value.status === 'created') {
+      // keep polling
+      return
     }
+    stopPolling()
+  } catch (error: any) {
+    // 手动刷新时提示错误；自动轮询时静默
+    if (!silent) {
+      ms.error(error?.message || '刷新失败')
+    }
+  }
+}
+
+async function handleManualRefresh() {
+  if (manualRefreshing.value) return
+  manualRefreshing.value = true
+  try {
+    await refreshStatus(false)
+    ms.success('刷新成功')
+  } finally {
+    manualRefreshing.value = false
   }
 }
 
 function startPolling() {
   stopPolling()
-  timer = setInterval(refreshStatus, 60000) // 60秒轮询一次
+  timer = setInterval(() => refreshStatus(true), 60000) // 60秒轮询一次（静默）
 }
 
 function stopPolling() {
@@ -126,19 +170,6 @@ function stopPolling() {
 function goBack() {
   router.push('/')
 }
-
-onMounted(() => {
-  // 自动打开知识库
-  if (!selectedPdfId.value) {
-    globalStore.showKnowledgeBase = true
-  }
-  
-  // 如果已有任务在运行，开始轮询
-  if (activeJob.value?.jobId && (activeJob.value.status === 'processing' || activeJob.value.status === 'created')) {
-    refreshStatus()
-    startPolling()
-  }
-})
 
 onUnmounted(() => {
   stopPolling()
@@ -235,7 +266,7 @@ onUnmounted(() => {
 
         <!-- 进度与结果展示 -->
         <section v-if="activeJob">
-          <NoteGenStatusCard :job="activeJob" @refresh="refreshStatus" />
+          <NoteGenStatusCard :job="activeJob" :refreshing="manualRefreshing" @refresh="handleManualRefresh" @retry="handleRetry" />
           
           <div v-if="activeJob.status === 'completed' || activeJob.status === 'failed'" class="mt-8 flex justify-center">
             <button 

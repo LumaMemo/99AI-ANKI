@@ -54,15 +54,19 @@ export function fetchCreateNoteGenJob(data: CreateNoteGenJobDto) {
 }
 
 /** 查询任务详情 */
-export function fetchNoteGenJobDetail(jobId: string) {
+export function fetchNoteGenJobDetail(jobId: string, options?: { silent?: boolean }) {
   return get<NoteGenJobDetailDto>({
     url: `/note-gen/jobs/${jobId}`,
+    data: { _t: Date.now() },
+    silent: options?.silent,
   })
 }
 
 /** 获取产物下载签名链接 */
-export function fetchNoteGenFileSignedUrl(jobId: string, fileType: NoteGenArtifactType) {
+export function fetchNoteGenFileSignedUrl(jobId: string, fileType: NoteGenArtifactType, options?: { silent?: boolean }) {
   return get<NoteGenFileSignedUrlResponseDto>({
     url: `/note-gen/jobs/${jobId}/files/${fileType}/signed-url`,
+    data: { _t: Date.now() },
+    silent: options?.silent,
   })
 }

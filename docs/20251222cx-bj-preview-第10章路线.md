@@ -113,10 +113,22 @@
     - 状态映射：
       - `processing/created`：显示进度条与“手动刷新”按钮。
       - `failed/incomplete`：显示后端 `userMessage`（若有）与“重试/再次发起生成”按钮（重试语义：再次调用创建任务接口，后端幂等/断点续跑接管）。
+    - 手动刷新 UX（本次补齐）：
+      - 用户点击刷新后，**必须有“刷新成功”提示**（toast）。
+      - “刷新中”只在请求进行中显示转圈/禁用，**请求结束立刻停止**，不允许一直转圈。
   - 轮询逻辑：
     - 在专用页 `onMounted`：若存在 `activeNoteGenJob.jobId`，立即拉一次 `GET /note-gen/jobs/:jobId`。
     - 自动轮询：`setInterval` 每 60 秒刷新一次；离开页面 `onUnmounted` 清理定时器。
     - 手动刷新：立即触发一次 `GET`。
+    - 轮询错误处理（本次补齐）：
+      - 自动轮询请求走 `silent`（best-effort），避免偶发错误打扰用户。
+      - 手动刷新请求不 silent，失败需要提示原因。
+
+  - ⚠️ 联调修复（本次实际踩坑记录）：
+    - **避免 304 Not Modified 导致“刷新无反馈”**：后端对 `GET /note-gen/jobs/:jobId` 返回了 ETag，浏览器会携带 `If-None-Match` 导致 304 无 body，从而前端状态不更新。
+      - 处理方式：前端在请求上追加 cache-bust query（如 `_t=Date.now()`），确保每次刷新/轮询拿到最新 body。
+    - **兼容后端返回结构差异**：部分环境可能直接返回 DTO（不包 `{ code, data }`）。
+      - 处理方式：Store 层做 unwrap，支持“包装/非包装”两种响应体。
 - **验证脚本**：
 
   - 在专用页发起任务后，确认出现 6 段进度条。

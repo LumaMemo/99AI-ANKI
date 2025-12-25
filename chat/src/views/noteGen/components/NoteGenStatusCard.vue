@@ -1,39 +1,46 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useChatStore } from '@/store'
 import { Download, Refresh, Loading } from '@icon-park/vue-next'
 import { fetchNoteGenFileSignedUrl } from '@/api/noteGen'
 
 const props = defineProps<{
   job: any
+  refreshing?: boolean
 }>()
 
-const emit = defineEmits(['refresh'])
-
-const chatStore = useChatStore()
+const emit = defineEmits<{
+  (e: 'refresh'): void
+  (e: 'retry'): void
+}>()
 
 const status = computed(() => props.job?.status || 'created')
 const progress = computed(() => props.job?.progressPercent || 0)
 const userMessage = computed(() => props.job?.userMessage)
+const refreshing = computed(() => !!props.refreshing)
 
 // 6段进度条计算
 const progressSegments = computed(() => {
-  const segments = []
-  for (let i = 1; i <= 6; i++) {
-    const threshold = i * 16.6
-    segments.push({
-      active: progress.value >= threshold || (i === 1 && progress.value > 0),
-      completed: progress.value >= threshold
-    })
-  }
-  return segments
+  const segmentCount = 6
+  const step = 100 / segmentCount
+  const currentProgress = Math.max(0, Math.min(100, Number(progress.value) || 0))
+
+  const filledCount = currentProgress <= 0 ? 0 : Math.min(segmentCount, Math.ceil(currentProgress / step))
+  const showActive = status.value === 'processing' || status.value === 'created'
+
+  return Array.from({ length: segmentCount }, (_, index) => {
+    const position = index + 1
+    const completed = position <= filledCount
+    const active = showActive && !completed && position === filledCount + 1
+    return { completed, active }
+  })
 })
 
 async function handleDownload(fileType: 'markdown-markmap' | 'word') {
   try {
     const res = await fetchNoteGenFileSignedUrl(props.job.jobId, fileType)
-    if (res.url) {
-      window.open(res.url, '_blank')
+    const url = (res as any)?.data?.url || (res as any)?.url
+    if (url) {
+      window.open(url, '_blank')
     }
   } catch (error: any) {
     window.alert(error.message || '下载失败')
@@ -41,7 +48,12 @@ async function handleDownload(fileType: 'markdown-markmap' | 'word') {
 }
 
 function handleRefresh() {
+  if (refreshing.value) return
   emit('refresh')
+}
+
+function handleRetry() {
+  emit('retry')
 }
 </script>
 
@@ -57,8 +69,11 @@ function handleRefresh() {
           v-if="status === 'processing' || status === 'created'"
           class="btn-icon btn-sm" 
           @click="handleRefresh"
+          :disabled="refreshing"
+          :class="{ 'opacity-60 cursor-not-allowed': refreshing }"
         >
-          <Refresh size="16" />
+          <Loading v-if="refreshing" class="animate-spin" size="16" />
+          <Refresh v-else size="16" />
         </button>
       </div>
     </div>
@@ -113,9 +128,9 @@ function handleRefresh() {
     <div v-if="status === 'failed' || status === 'incomplete'" class="flex justify-center">
       <button 
         class="px-8 py-3 rounded-2xl bg-[color:var(--btn-bg-primary)] text-white hover:opacity-90 transition-opacity"
-        @click="handleRefresh"
+        @click="handleRetry"
       >
-        重试 / 刷新状态
+        重试 / 再次发起生成
       </button>
     </div>
   </div>

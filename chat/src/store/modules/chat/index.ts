@@ -436,9 +436,14 @@ export const useChatStore = defineStore('chat-store', {
           kbPdfId,
           pageRange: { mode: 'all' },
         })
+        // 兼容两种返回：
+        // 1) { code/success, data: {...job} }
+        // 2) 直接返回 {...job}
         // @ts-ignore
-        if (res.success || res.code === 200) {
-          const jobData = res.data
+        const jobData = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res
+        // @ts-ignore
+        const ok = (res as any)?.success || ((res as any)?.code && (res as any).code >= 200 && (res as any).code < 300) || !!(jobData as any)?.jobId
+        if (ok) {
           this.activeNoteGenJob = jobData
 
           const pdfName = this.selectedKbPdfName || '未知文件'
@@ -473,7 +478,7 @@ export const useChatStore = defineStore('chat-store', {
         }
         else {
           // @ts-ignore
-          throw new Error(res.message || '创建任务失败')
+          throw new Error((res as any)?.message || '创建任务失败')
         }
       }
       catch (error) {
@@ -482,18 +487,28 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     /* 同步任务状态 */
-    async syncNoteGenJobStatus(jobId: string) {
+    async syncNoteGenJobStatus(jobId: string, options?: { silent?: boolean }) {
       try {
-        const res = await fetchNoteGenJobDetail(jobId)
+        const res = await fetchNoteGenJobDetail(jobId, { silent: options?.silent })
+        // 兼容两种返回：
+        // 1) { code/success, data: {...job} }
+        // 2) 直接返回 {...job}
         // @ts-ignore
-        if (res.success || res.code === 200) {
-          this.activeNoteGenJob = res.data
+        const jobData = (res && typeof res === 'object' && 'data' in res) ? (res as any).data : res
+        // @ts-ignore
+        const ok = (res as any)?.success || ((res as any)?.code && (res as any).code >= 200 && (res as any).code < 300) || !!(jobData as any)?.jobId
+        if (ok) {
+          this.activeNoteGenJob = jobData
           this.recordState()
-          return res.data
+          return jobData
         }
+
+        // @ts-ignore
+        throw new Error((res as any)?.message || '同步任务状态失败')
       }
       catch (error) {
         console.error('Sync note gen job status failed:', error)
+        return Promise.reject(error)
       }
     },
 
