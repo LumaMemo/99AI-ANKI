@@ -728,6 +728,143 @@ export class KbService {
     return { success: true };
   }
 
+  /**
+   * 获取指定 PDF 的知识卡片目录树
+   */
+  async getCardTree(userId: number, pdfId: number) {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(pdfId) ? Math.floor(pdfId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+
+    const cfg = await this.getKbCosConfigOrThrow();
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+    });
+
+    // 计算 anki_card_all 前缀
+    const lastSlashIndex = record.cosKey.lastIndexOf('/');
+    const folderPrefix = lastSlashIndex !== -1 ? record.cosKey.substring(0, lastSlashIndex + 1) : '';
+    const cardPrefix = `${folderPrefix}anki_card_all/`;
+
+    // 递归列出所有对象
+    const allObjects: any[] = [];
+    let marker: string | undefined = undefined;
+
+    do {
+      const list: any = await new Promise((resolve, reject) => {
+        cos.getBucket(
+          {
+            Bucket: removeSpecialCharacters(record.cosBucket || cfg.bucket),
+            Region: removeSpecialCharacters(record.cosRegion || cfg.region),
+            Prefix: cardPrefix,
+            Marker: marker,
+            MaxKeys: 1000,
+          },
+          (err, data) => {
+            if (err) return reject(err);
+            resolve(data);
+          },
+        );
+      });
+      if (list.Contents) {
+        allObjects.push(...list.Contents);
+      }
+      marker = list.IsTruncated === 'true' ? list.NextMarker : undefined;
+    } while (marker);
+
+    // 构建树形结构
+    const tree: any[] = [];
+    const map = new Map<string, any>();
+
+    allObjects.forEach((obj) => {
+      const key = obj.Key as string;
+      const relativePath = key.substring(cardPrefix.length);
+      if (!relativePath) return;
+
+      const parts = relativePath.split('/');
+      let currentLevel = tree;
+      let currentPath = '';
+
+      parts.forEach((part, index) => {
+        const isFile = index === parts.length - 1 && !key.endsWith('/');
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+        if (!map.has(currentPath)) {
+          const node = {
+            name: part,
+            path: key, // 完整 COS Key
+            relativePath: currentPath,
+            isFile,
+            children: isFile ? undefined : [],
+          };
+          map.set(currentPath, node);
+          currentLevel.push(node);
+        }
+
+        if (!isFile) {
+          const node = map.get(currentPath);
+          if (node && node.children) {
+            currentLevel = node.children;
+          }
+        }
+      });
+    });
+
+    return tree;
+  }
+
+  /**
+   * 获取指定路径的知识卡片详情 (base.json)
+   */
+  async getCardDetail(userId: number, pdfId: number, path: string) {
+    if (!userId) throw new BadRequestException('未登录');
+    const id = Number.isFinite(pdfId) ? Math.floor(pdfId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+    if (!path) throw new BadRequestException('路径不能为空');
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+
+    // 安全检查：确保 path 在该 PDF 的 anki_card_all 目录下
+    const lastSlashIndex = record.cosKey.lastIndexOf('/');
+    const folderPrefix = lastSlashIndex !== -1 ? record.cosKey.substring(0, lastSlashIndex + 1) : '';
+    const cardPrefix = `${folderPrefix}anki_card_all/`;
+    if (!path.startsWith(cardPrefix)) {
+      throw new BadRequestException('非法访问路径');
+    }
+
+    const cfg = await this.getKbCosConfigOrThrow();
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+    });
+
+    try {
+      const data: any = await new Promise((resolve, reject) => {
+        cos.getObject(
+          {
+            Bucket: removeSpecialCharacters(record.cosBucket || cfg.bucket),
+            Region: removeSpecialCharacters(record.cosRegion || cfg.region),
+            Key: path,
+          },
+          (err, data) => {
+            if (err) return reject(err);
+            resolve(data);
+          },
+        );
+      });
+
+      const content = data.Body.toString('utf-8');
+      return JSON.parse(content);
+    } catch (e) {
+      throw new InternalServerErrorException(`读取卡片详情失败: ${e.message}`);
+    }
+  }
+
   private async deleteCosDirectory(cos: TENCENTCOS, bucket: string, region: string, prefix: string) {
     if (!prefix || prefix === '/' || prefix.trim() === '') return;
 
