@@ -74,6 +74,7 @@
     "fs-extra": "^11.3.0",
     "http-server": "^14.1.1",
     "inquirer": "^12.6.1",
+    "mockjs": "^1.1.0",
     "msw": "^2.0.0",
     "picocolors": "^1.1.1",
     "plop": "^4.0.1",

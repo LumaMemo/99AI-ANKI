@@ -25,7 +25,7 @@
     "common:cleanup": "rimraf node_modules && rimraf pnpm-lock.yaml",
     "format": "pnpm dlx prettier --write '{src,scripts,config}/**/*.{vue,ts,tsx,js,jsx,css,scss,less,json,md,html,yml,yaml}' '*.{js,ts,json,md,yml}'",
     "electron": "electron .",
-    "electron:dev": "cross-env ELECTRON_START_URL=http://localhost:9002 electron .",
+    "electron:dev": "cross-env ELECTRON_START_URL=http://localhost:49002 electron .",
     "electron:build": "pnpm run build && electron-builder",
     "electron:mac": "pnpm run build && npx electron-builder --mac --config.npmRebuild=false",
     "electron:mac-universal": "pnpm run build && npx electron-builder --mac --universal --config.npmRebuild=false",

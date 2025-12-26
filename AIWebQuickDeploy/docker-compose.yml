@@ -36,7 +36,7 @@ services:
     container_name: 99ai
     restart: always
     ports:
-      - '9520:9520'
+      - '49520:49520'
     volumes:
       - ./.env.docker:/usr/src/app/.env:rw # Mount with explicit read-write permissions
       - ./dist:/usr/src/app/dist:ro # 挂载dist目录（只读）

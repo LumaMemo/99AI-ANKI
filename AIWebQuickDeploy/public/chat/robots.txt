@@ -4,7 +4,7 @@ Disallow: /auth/
 Allow: /
 
 # Prevent indexing of sensitive paths
-Disallow: /admin/
+Disallow: /ghjy-lumamemo-admin/
 Disallow: /login
 Disallow: /register
 Disallow: /settings

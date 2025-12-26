@@ -1289,7 +1289,7 @@ provide('tryParseJson', tryParseJson)
       class="glass-card relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform"
     >
       <!-- 笔记生成入口图标 -->
-      <NoteGenAppIcon />
+      <NoteGenAppIcon v-if="!useGlobalStore.showAppListComponent" />
 
       <!-- Background Image Layer -->
       <div
