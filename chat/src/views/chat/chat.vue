@@ -26,6 +26,8 @@ const isStreamIn = computed(() => {
   return chatStore.isStreamIn !== undefined ? chatStore.isStreamIn : false
 })
 
+const isKnowledgeCard = computed(() => router.currentRoute.value.name === 'KnowledgeCard')
+
 watch(isLogin, async (newVal, oldVal) => {
   if (newVal && !oldVal) {
     await chatStore.queryMyGroup()
@@ -40,7 +42,7 @@ const getMobileClass = computed(() => {
 })
 
 const getPagePaddingClass = computed(() => {
-  if (isMobile.value) return ''
+  if (isMobile.value || isKnowledgeCard.value) return ''
   return 'p-3 md:p-4'
 })
 
@@ -49,7 +51,7 @@ const getContainerClass = computed(() => {
     'h-full',
     'transition-[padding]',
     'duration-300',
-    { 'pl-[260px]': !isMobile.value && !collapsed.value },
+    { 'pl-[260px]': !isMobile.value && !collapsed.value && !isKnowledgeCard.value },
   ]
 })
 
@@ -110,6 +112,9 @@ const mobileSettingsDialog = computed(() => useGlobalStore.mobileSettingsDialog)
 const router = useRouter()
 // 监听激活的对话组变化，决定跳转到聊天页还是笔记生成页
 watch(() => chatStore.active, (newActive) => {
+  // 如果当前已经在知识卡片页，不进行自动跳转
+  if (router.currentRoute.value.name === 'KnowledgeCard') return
+
   const activeConfig = chatStore.activeConfig
   if (activeConfig?.isNoteGen) {
     if (router.currentRoute.value.name !== 'NoteGen') {
@@ -131,7 +136,7 @@ provide('createNewChatGroup', createNewChatGroup)
   <div class="h-full transition-all" :class="getPagePaddingClass">
     <div class="h-full overflow-hidden" :class="getMobileClass">
       <div class="z-40 h-full flex" :class="getContainerClass">
-        <Sider class="h-full" />
+        <Sider v-if="!isKnowledgeCard" class="h-full" />
         <router-view v-slot="{ Component }">
           <component :is="Component" class="w-full flex-1 transition-[margin] duration-500" />
         </router-view>
