@@ -18,6 +18,13 @@ const progress = computed(() => props.job?.progressPercent || 0)
 const userMessage = computed(() => props.job?.userMessage)
 const refreshing = computed(() => !!props.refreshing)
 
+const statusLabel = computed(() => {
+  if (status.value === 'completed') return '已完成'
+  if (status.value === 'failed') return '失败'
+  if (status.value === 'incomplete') return '未完成'
+  return '队列中'
+})
+
 // 6段进度条计算
 const progressSegments = computed(() => {
   const segmentCount = 6
@@ -55,12 +62,18 @@ function handleRefresh() {
 function handleRetry() {
   emit('retry')
 }
+
+function getSegmentClass(seg: any) {
+  if (seg.completed) return 'bg-blue-500'
+  if (seg.active) return 'bg-blue-300 animate-pulse'
+  return 'bg-gray-200 dark:bg-gray-700'
+}
 </script>
 
 <template>
-  <div class="p-6 glass-card border border-[color:var(--glass-border)] rounded-3xl shadow-xl max-w-2xl mx-auto w-full">
+  <div class="p-6 glass-card border border-glass-custom rounded-3xl shadow-xl max-w-2xl mx-auto w-full">
     <div class="flex items-center justify-between mb-6">
-      <h3 class="text-lg font-bold text-[color:var(--text-primary)]">生成进度</h3>
+      <h3 class="text-lg font-bold text-primary-custom">生成进度</h3>
       <div class="flex items-center gap-2">
         <span v-if="status === 'processing'" class="text-xs text-blue-500 flex items-center gap-1">
           <Loading class="animate-spin" /> 处理中...
@@ -84,20 +97,18 @@ function handleRetry() {
         v-for="(seg, index) in progressSegments" 
         :key="index"
         class="h-2 flex-1 rounded-full transition-all duration-500"
-        :class="[
-          seg.completed ? 'bg-blue-500' : (seg.active ? 'bg-blue-300 animate-pulse' : 'bg-gray-200 dark:bg-gray-700')
-        ]"
+        :class="getSegmentClass(seg)"
       ></div>
     </div>
     
-    <div class="flex justify-between text-sm text-[color:var(--text-secondary)] mb-8">
+    <div class="flex justify-between text-sm text-secondary-custom mb-8">
       <span>进度: {{ progress }}%</span>
       <span :class="{
         'text-green-500': status === 'completed',
         'text-red-500': status === 'failed',
         'text-orange-500': status === 'incomplete'
       }">
-        {{ status === 'completed' ? '已完成' : (status === 'failed' ? '失败' : (status === 'incomplete' ? '未完成' : '队列中')) }}
+        {{ statusLabel }}
       </span>
     </div>
 
@@ -133,7 +144,7 @@ function handleRetry() {
     <!-- 重试按钮 -->
     <div v-if="status === 'failed' || status === 'incomplete'" class="flex justify-center">
       <button 
-        class="px-8 py-3 rounded-2xl bg-[color:var(--btn-bg-primary)] text-white hover:opacity-90 transition-opacity"
+        class="px-8 py-3 rounded-2xl btn-primary-custom text-white hover:opacity-90 transition-opacity"
         @click="handleRetry"
       >
         重试 / 再次发起生成
@@ -141,3 +152,22 @@ function handleRetry() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.glass-card {
+  background: var(--glass-bg-primary);
+  backdrop-filter: blur(12px);
+}
+.text-primary-custom {
+  color: var(--text-primary);
+}
+.text-secondary-custom {
+  color: var(--text-secondary);
+}
+.border-glass-custom {
+  border-color: var(--glass-border);
+}
+.btn-primary-custom {
+  background-color: var(--btn-bg-primary);
+}
+</style>

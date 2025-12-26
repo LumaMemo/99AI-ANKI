@@ -181,6 +181,15 @@ function goBack() {
   router.push('/')
 }
 
+function handleReset() {
+  chatStore.setSelectedKbPdf(undefined, undefined)
+  chatStore.activeNoteGenJob = null
+}
+
+function handleCreateNewChat() {
+  createNewChatGroup()
+}
+
 onUnmounted(() => {
   stopPolling()
 })
@@ -190,13 +199,13 @@ onUnmounted(() => {
   <div class="flex h-full w-full">
     <div class="glass-card relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform">
       <!-- Header（右上角：主题切换 + 新建对话，行为与新对话页一致） -->
-      <header class="sticky top-0 left-0 right-0 z-30 h-16 select-none flex items-center px-6 border-b border-[color:var(--glass-border)] bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
+      <header class="sticky top-0 left-0 right-0 z-30 h-16 select-none flex items-center px-6 border-b border-glass-custom bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm">
         <div class="flex items-center justify-between w-full min-w-0">
           <div class="flex items-center min-w-0">
             <button class="btn-icon mr-4" @click="goBack" aria-label="返回聊天">
               <ArrowLeft size="24" />
             </button>
-            <h2 class="text-xl font-bold text-[color:var(--text-primary)] truncate">笔记生成专用页</h2>
+            <h2 class="text-xl font-bold text-primary-custom truncate">笔记生成专用页</h2>
           </div>
 
           <div class="flex items-center flex-shrink-0">
@@ -209,7 +218,7 @@ onUnmounted(() => {
             </div>
 
             <div class="relative group mx-1">
-              <button type="button" class="btn-icon btn-md" @click="createNewChatGroup()" aria-label="新建对话">
+              <button type="button" class="btn-icon btn-md" @click="handleCreateNewChat" aria-label="新建对话">
                 <EditTwo size="20" aria-hidden="true" />
               </button>
               <div v-if="!isMobile" class="tooltip tooltip-bottom">新建对话</div>
@@ -223,17 +232,17 @@ onUnmounted(() => {
       <div class="max-w-4xl mx-auto space-y-8">
         
         <!-- PDF 选择展示 -->
-        <section class="glass-card p-8 rounded-3xl border border-[color:var(--glass-border)] shadow-lg">
+        <section class="glass-card p-8 rounded-3xl border border-glass-custom shadow-lg">
           <div class="flex items-start justify-between gap-4">
             <div class="flex items-center gap-4 min-w-0 flex-1">
               <div class="w-16 h-16 flex-shrink-0 flex items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500">
                 <FilePdf size="40" />
               </div>
               <div class="min-w-0 flex-1">
-                <h3 class="text-lg font-bold text-[color:var(--text-primary)] truncate" :title="selectedPdfName">
+                <h3 class="text-lg font-bold text-primary-custom truncate" :title="selectedPdfName">
                   {{ selectedPdfName || '未选择 PDF' }}
                 </h3>
-                <p class="text-sm text-[color:var(--text-tertiary)] mt-1 truncate">
+                <p class="text-sm text-tertiary-custom mt-1 truncate">
                   {{ selectedPdfId ? `ID: ${selectedPdfId}` : '请从左侧知识库中选择一个文件' }}
                 </p>
               </div>
@@ -252,15 +261,15 @@ onUnmounted(() => {
         </section>
 
         <!-- 配置展示 (本期固定) -->
-        <section v-if="selectedPdfId && !activeJob" class="glass-card p-8 rounded-3xl border border-[color:var(--glass-border)] shadow-lg">
-          <h3 class="text-lg font-bold text-[color:var(--text-primary)] mb-4">生成配置</h3>
+        <section v-if="selectedPdfId && !activeJob" class="glass-card p-8 rounded-3xl border border-glass-custom shadow-lg">
+          <h3 class="text-lg font-bold text-primary-custom mb-4">生成配置</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)]">
-              <div class="text-xs text-[color:var(--text-tertiary)] mb-1">页码范围</div>
+            <div class="p-4 rounded-2xl bg-glass-secondary-custom border border-glass-custom">
+              <div class="text-xs text-tertiary-custom mb-1">页码范围</div>
               <div class="text-sm font-medium">全部页面 (Mode: All)</div>
             </div>
-            <div class="p-4 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)]">
-              <div class="text-xs text-[color:var(--text-tertiary)] mb-1">输出格式</div>
+            <div class="p-4 rounded-2xl bg-glass-secondary-custom border border-glass-custom">
+              <div class="text-xs text-tertiary-custom mb-1">输出格式</div>
               <div class="text-sm font-medium">Markdown + Word</div>
             </div>
           </div>
@@ -285,7 +294,7 @@ onUnmounted(() => {
           <div v-if="activeJob.status === 'completed' || activeJob.status === 'failed'" class="mt-8 flex justify-center">
             <button 
               class="text-sm text-blue-500 hover:underline"
-              @click="chatStore.setSelectedKbPdf(undefined, undefined); chatStore.activeNoteGenJob = null"
+              @click="handleReset"
             >
               生成另一个 PDF
             </button>
@@ -302,5 +311,17 @@ onUnmounted(() => {
 .glass-card {
   background: var(--glass-bg-primary);
   backdrop-filter: blur(12px);
+}
+.text-primary-custom {
+  color: var(--text-primary);
+}
+.text-tertiary-custom {
+  color: var(--text-tertiary);
+}
+.border-glass-custom {
+  border-color: var(--glass-border);
+}
+.bg-glass-secondary-custom {
+  background-color: var(--glass-bg-secondary);
 }
 </style>

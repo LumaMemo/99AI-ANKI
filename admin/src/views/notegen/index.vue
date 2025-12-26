@@ -122,7 +122,7 @@ onMounted(() => {
         </el-table-column>
         <el-table-column prop="progressPercent" label="进度" width="180">
           <template #default="{ row }">
-            <el-progress :percentage="row.progressPercent" :status="row.status === 'completed' ? 'success' : (row.status === 'failed' ? 'exception' : '')" />
+            <el-progress :percentage="row.progressPercent" :status="row.status === 'completed' ? 'success' : (row.status === 'failed' ? 'exception' : undefined)" />
           </template>
         </el-table-column>
         <el-table-column prop="chargedPoints" label="扣除点数" width="100" align="center" />
