@@ -26,7 +26,7 @@ export default async ({ mode, command }) => {
     // 开发服务器选项 https://cn.vitejs.dev/config/#server-options
     server: {
       open: false,
-      port: 9000,
+      port: 49000,
       proxy: {
         '/proxy': {
           target: env.VITE_APP_API_BASEURL,
