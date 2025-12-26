@@ -7,7 +7,8 @@ import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAppStore, useAuthStore, useChatStore, useGlobalStoreWithOut } from '@/store'
 import { message } from '@/utils/message'
 import { computed, onMounted, provide, watch } from 'vue'
-import ChatBase from './chatBase.vue'
+import Sider from './components/sider/index.vue'
+import { useRouter } from 'vue-router'
 
 const ms = message()
 const appStore = useAppStore()
@@ -75,6 +76,11 @@ async function createNewChatGroup() {
     if (isMobile.value) {
       appStore.setSiderCollapsed(true)
     }
+
+    // 明确跳转到聊天页
+    if (router.currentRoute.value.name !== 'Chat') {
+      router.push('/')
+    }
   } catch (error) {}
 }
 
@@ -92,10 +98,7 @@ async function createNewChatGroup() {
 // }
 
 onMounted(() => {
-  // 如果当前路径不是根路径，则重定向到根路径
-  if (window.location.pathname !== '/' && !window.location.pathname.includes('.')) {
-    window.history.replaceState({}, document.title, '/')
-  }
+  // 移除强制重定向逻辑，以支持 /note-gen 等路由
 })
 
 const useGlobalStore = useGlobalStoreWithOut()
@@ -104,6 +107,23 @@ const badWordsDialog = computed(() => useGlobalStore.BadWordsDialog)
 const settingsDialog = computed(() => useGlobalStore.settingsDialog)
 const mobileSettingsDialog = computed(() => useGlobalStore.mobileSettingsDialog)
 
+const router = useRouter()
+// 监听激活的对话组变化，决定跳转到聊天页还是笔记生成页
+watch(() => chatStore.active, (newActive) => {
+  const activeConfig = chatStore.activeConfig
+  if (activeConfig?.isNoteGen) {
+    if (router.currentRoute.value.name !== 'NoteGen') {
+      router.push('/note-gen')
+    }
+  }
+  else if (newActive !== 0) {
+    // 如果切换到了一个明确的普通对话组，且当前在笔记生成页，则跳回首页
+    if (router.currentRoute.value.name === 'NoteGen') {
+      router.push('/')
+    }
+  }
+}, { immediate: true })
+
 provide('createNewChatGroup', createNewChatGroup)
 </script>
 
@@ -111,7 +131,10 @@ provide('createNewChatGroup', createNewChatGroup)
   <div class="h-full transition-all" :class="getPagePaddingClass">
     <div class="h-full overflow-hidden" :class="getMobileClass">
       <div class="z-40 h-full flex" :class="getContainerClass">
-        <ChatBase class="w-full flex-1 transition-[margin] duration-500" />
+        <Sider class="h-full" />
+        <router-view v-slot="{ Component }">
+          <component :is="Component" class="w-full flex-1 transition-[margin] duration-500" />
+        </router-view>
       </div>
     </div>
     <div class="overflow-hidden">

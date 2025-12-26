@@ -1,5 +1,7 @@
 import { get, post } from '@/utils/request'
 
+type RequestOptions = { silent?: boolean }
+
 /* 删除对话记录 */
 export function fetchDelChatLogAPI<T>(data: { id: number }): Promise<T> {
   return post<T>({
@@ -26,10 +28,14 @@ export function fetchDeleteGroupChatsAfterIdAPI<T>(data: { id: number }): Promis
 }
 
 /* 查询x组对话信息 */
-export function fetchQueryChatLogListAPI<T>(data: { groupId: number }): Promise<T> {
+export function fetchQueryChatLogListAPI<T>(
+  data: { groupId: number },
+  options?: RequestOptions
+): Promise<T> {
   return get<T>({
     url: '/chatlog/chatList',
     data,
+    silent: options?.silent,
   })
 }
 

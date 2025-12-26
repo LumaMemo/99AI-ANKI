@@ -12,11 +12,11 @@ import {
   retryDeleteKbFileAPI,
   uploadKbPdfAPI,
 } from '../../../../api/kb'
-import { useAuthStore } from '../../../../store'
+import { useAuthStore, useChatStore, useGlobalStoreWithOut } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
-import { Close } from '@icon-park/vue-next'
+import { Close, CheckOne } from '@icon-park/vue-next'
 import { dialog } from '../../../../utils/dialog'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 interface FolderTreeNode {
   id: number
@@ -34,13 +34,22 @@ interface PdfRow {
   createdAt: string
 }
 
+const props = defineProps<{
+  hideTrigger?: boolean
+}>()
+
+const useGlobalStore = useGlobalStoreWithOut()
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 const isLogin = computed(() => authStore.isLogin)
 // 聊天模块：将 640–767 也视为移动端（<md）
 const { isSmallMd: isMobile } = useBasicLayout()
 const dlg = dialog()
 
-const visible = ref(false)
+const visible = computed({
+  get: () => useGlobalStore.showKnowledgeBase,
+  set: (val) => useGlobalStore.showKnowledgeBase = val
+})
 
 const loading = ref(false)
 const loadError = ref<string | null>(null)
@@ -170,9 +179,6 @@ async function refreshAll(showToast = false) {
 function openPane() {
   if (!isLogin.value) return
   visible.value = true
-  nextTick(() => {
-    loadAll()
-  })
 }
 
 function closePane() {
@@ -388,6 +394,16 @@ async function previewPdfFile(f: PdfRow) {
   }
 }
 
+function selectPdfForNoteGen(f: PdfRow) {
+  if (!isLogin.value) return
+  if (Number(f?.status) === 2) {
+    window.alert('该文件正在删除中，无法选择')
+    return
+  }
+  chatStore.setSelectedKbPdf(f.id, f.displayName || f.originalName)
+  closePane()
+}
+
 const breadcrumb = computed(() => {
   const result: Array<{ id: number; name: string }> = []
   const byId = folderById.value
@@ -435,8 +451,7 @@ watch(
 watch(
   () => authStore.isLogin,
   val => {
-    if (val) loadAll()
-    else {
+    if (!val) {
       folderTree.value = null
       files.value = []
       quotaBytes.value = 0
@@ -448,15 +463,20 @@ watch(
   { immediate: true }
 )
 
-onMounted(() => {
-  loadAll()
-})
+// 仅在打开抽屉时加载，避免“进入页面就发请求”的体验问题。
+watch(
+  visible,
+  val => {
+    if (val) loadAll()
+  },
+  { immediate: false }
+)
 </script>
 
 <template>
   <div>
     <!-- 顶部入口按钮（常置顶） -->
-    <div class="px-4 pt-3">
+    <div v-if="!hideTrigger" class="px-4 pt-3">
       <button
         type="button"
         class="w-full text-left glass rounded-2xl p-3 border border-[color:var(--glass-border)] hover:bg-[color:var(--glass-bg-secondary)] transition-[background]"
@@ -490,7 +510,7 @@ onMounted(() => {
     <!-- 左侧抽屉（只读管理）：Teleport 到 body，确保是顶层覆盖层，不受侧边栏 transform 影响 -->
     <Teleport to="body">
       <transition name="kb-drawer">
-        <div v-if="visible" class="fixed inset-0 z-[9000]" aria-label="知识库抽屉">
+        <div v-if="visible" class="fixed inset-0 z-[9999]" aria-label="知识库抽屉">
           <!-- 遮罩 -->
           <div
             class="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -646,49 +666,74 @@ onMounted(() => {
                     <ul v-else class="mt-2 space-y-2">
                       <li v-for="f in files" :key="f.id">
                         <div
-                          class="w-full flex items-center gap-3 px-3 py-2 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
+                          class="w-full flex items-start gap-3 px-3 py-3 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
+                          :class="{ 'bg-[color:var(--glass-bg-secondary)] border-[color:var(--glass-border)] ring-1 ring-[color:var(--btn-bg-primary)]': chatStore.selectedKbPdfId === f.id }"
                         >
-                          <div class="w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center">
+                          <div class="shrink-0 w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center relative">
                             <span class="text-[10px] font-bold text-[color:var(--text-tertiary)]">PDF</span>
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">{{ f.displayName || f.originalName }}</div>
-                            <div class="mt-0.5 text-xs text-[color:var(--text-tertiary)] truncate">
-                              <span v-if="Number(f.status) === 2" class="mr-2 text-red-500">删除中</span>
-                              {{ f.originalName }}
+                            <div v-if="chatStore.selectedKbPdfId === f.id" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[color:var(--btn-bg-primary)] flex items-center justify-center text-white">
+                              <CheckOne size="10" />
                             </div>
                           </div>
-                          <div class="shrink-0 text-xs text-[color:var(--text-tertiary)]">{{ formatBytes(f.sizeBytes) }}</div>
 
-                          <div class="shrink-0 flex items-center gap-2">
-                            <button
-                              type="button"
-                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
-                              @click.stop="previewPdfFile(f)"
-                              :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id || Number(f.status) === 2 }"
-                              :disabled="previewingId === f.id || Number(f.status) === 2"
-                              aria-label="预览 PDF"
-                            >
-                              {{ previewingId === f.id ? '打开中…' : '预览' }}
-                            </button>
-                            <button
-                              type="button"
-                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
-                              @click.stop="renamePdfFile(f)"
-                              :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
-                              :disabled="Number(f.status) === 2"
-                              aria-label="重命名 PDF"
-                            >
-                              重命名
-                            </button>
-                            <button
-                              type="button"
-                              class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
-                              @click.stop="deletePdfFile(f)"
-                              aria-label="删除 PDF"
-                            >
-                              {{ Number(f.status) === 2 ? '重试删除' : '删除' }}
-                            </button>
+                          <div class="flex-1 min-w-0 flex flex-col gap-2">
+                            <!-- 第一行：名称和大小 -->
+                            <div class="flex items-center justify-between gap-2">
+                              <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">
+                                {{ f.displayName || f.originalName }}
+                              </div>
+                              <div class="shrink-0 text-[10px] text-[color:var(--text-tertiary)]">
+                                {{ formatBytes(f.sizeBytes) }}
+                              </div>
+                            </div>
+
+                            <!-- 状态/原名（可选，较淡） -->
+                            <div v-if="Number(f.status) === 2 || f.displayName" class="text-[10px] text-[color:var(--text-tertiary)] truncate opacity-60">
+                              <span v-if="Number(f.status) === 2" class="mr-2 text-red-500">删除中</span>
+                              <span v-if="f.displayName">{{ f.originalName }}</span>
+                            </div>
+
+                            <!-- 第二行：操作按钮 -->
+                            <div class="flex items-center gap-4">
+                              <button
+                                type="button"
+                                class="text-xs font-bold text-[color:var(--btn-bg-primary)] hover:opacity-80"
+                                @click.stop="selectPdfForNoteGen(f)"
+                                :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
+                                :disabled="Number(f.status) === 2"
+                                aria-label="选择 PDF"
+                              >
+                                {{ chatStore.selectedKbPdfId === f.id ? '已选' : '选择' }}
+                              </button>
+                              <button
+                                type="button"
+                                class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                                @click.stop="previewPdfFile(f)"
+                                :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id || Number(f.status) === 2 }"
+                                :disabled="previewingId === f.id || Number(f.status) === 2"
+                                aria-label="预览 PDF"
+                              >
+                                {{ previewingId === f.id ? '预览中…' : '预览' }}
+                              </button>
+                              <button
+                                type="button"
+                                class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                                @click.stop="renamePdfFile(f)"
+                                :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
+                                :disabled="Number(f.status) === 2"
+                                aria-label="重命名 PDF"
+                              >
+                                重命名
+                              </button>
+                              <button
+                                type="button"
+                                class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
+                                @click.stop="deletePdfFile(f)"
+                                aria-label="删除 PDF"
+                              >
+                                {{ Number(f.status) === 2 ? '重试删除' : '删除' }}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </li>

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
@@ -14,7 +14,13 @@ import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto'
 import { CreateNoteGenJobDto } from './dto/createNoteGenJob.dto';
 import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { ModelsEntity } from '../models/models.entity';
 import { GlobalConfigService } from '../globalConfig/globalConfig.service';
+import { KbService } from '../kb/kb.service';
+import { ReportArtifactsDto } from './dto/reportArtifacts.dto';
+import { UpdateJobStatusDto } from './dto/updateJobStatus.dto';
+import { UpsertStepUsageDto } from './dto/upsertStepUsage.dto';
+import { UserBalanceService } from '../userBalance/userBalance.service';
 
 @Injectable()
 export class NoteGenService {
@@ -31,8 +37,27 @@ export class NoteGenService {
     private readonly noteGenJobStepUsageRepo: Repository<NoteGenJobStepUsageEntity>,
     @InjectRepository(KbPdfEntity)
     private readonly kbPdfRepo: Repository<KbPdfEntity>,
+    @InjectRepository(ModelsEntity)
+    private readonly modelsRepo: Repository<ModelsEntity>,
     private readonly globalConfigService: GlobalConfigService,
+    @Inject(forwardRef(() => KbService))
+    private readonly kbService: KbService,
+    private readonly userBalanceService: UserBalanceService,
   ) {}
+
+  /**
+   * 计算预计成本
+   * 公式：min = pageCount * 1.0, max = pageCount * 2.0
+   */
+  private calculateEstimatedCost(pageCount: number) {
+    // 如果 pageCount 为 0（尚未解析），给一个默认估算或基于文件大小的粗略估算
+    // 这里按文档要求实现
+    const count = pageCount || 1; // 至少按 1 页算
+    return {
+      min: Math.round(count * 1.0),
+      max: Math.round(count * 2.0),
+    };
+  }
 
   /**
    * 获取当前启用的配置
@@ -79,7 +104,14 @@ export class NoteGenService {
   async createJob(dto: CreateNoteGenJobDto, userId: number) {
     const { kbPdfId, pageRange, configSnapshotId } = dto;
 
-    // 1. 校验 kbPdfId 是否属于当前用户
+    // 1. 准入门槛校验：余额必须 >= 10 积分 (仅校验普通积分 sumModel3Count)
+    const balance = await this.userBalanceService.queryUserBalance(userId);
+    const totalBalance = (balance.sumModel3Count || 0);
+    if (totalBalance < 10) {
+      throw new BadRequestException('发起笔记生成任务至少需要 10 普通积分');
+    }
+
+    // 2. 校验 kbPdfId 是否属于当前用户
     const kbPdf = await this.kbPdfRepo.findOne({
       where: { id: kbPdfId, userId, status: 1 },
     });
@@ -87,7 +119,7 @@ export class NoteGenService {
       throw new NotFoundException('PDF 文件不存在或不属于该用户');
     }
 
-    // 2. 获取配置
+    // 3. 获取配置
     let config: NoteGenConfigEntity;
     if (configSnapshotId) {
       config = await this.noteGenConfigRepo.findOne({ where: { id: configSnapshotId } });
@@ -96,14 +128,14 @@ export class NoteGenService {
       config = await this.getActiveConfig();
     }
 
-    // 3. 计算 idempotencyKey
+    // 4. 计算 idempotencyKey
     // userId + kbPdfId + pipelineKey + pageRangeJson + configId + configVersion + pdfEtag
     const pipelineKey = 'generate-notes';
     const pageRangeJson = JSON.stringify(pageRange);
     const rawKey = `${userId}-${kbPdfId}-${pipelineKey}-${pageRangeJson}-${config.id}-${config.version}-${kbPdf.etag || ''}`;
     const idempotencyKey = createHash('sha256').update(rawKey).digest('hex');
 
-    // 4. 检查是否存在相同幂等键的 Job
+    // 5. 检查是否存在相同幂等键的 Job
     const existingJob = await this.noteGenJobRepo.findOne({
       where: { userId, idempotencyKey },
     });
@@ -119,9 +151,17 @@ export class NoteGenService {
       return existingJob;
     }
 
-    // 5. 创建新 Job
+    // 6. 计算预计成本
+    const estimatedCost = this.calculateEstimatedCost(kbPdf.pageCount || 0);
+
+    // 7. 创建新 Job
     const jobId = uuidv4();
-    const resultCosPrefix = `kb/${userId}/_note_gen/${kbPdfId}/${jobId}/`;
+    // 结果前缀与源 PDF 所在目录保持一致，以便续跑时整体下载
+    const lastSlashIndex = kbPdf.cosKey.lastIndexOf('/');
+    const resultCosPrefix = lastSlashIndex !== -1
+      ? kbPdf.cosKey.substring(0, lastSlashIndex + 1)
+      : '';
+
     const newJob = this.noteGenJobRepo.create({
       jobId,
       userId,
@@ -137,7 +177,7 @@ export class NoteGenService {
       pdfEtag: kbPdf.etag,
       pdfFileName: kbPdf.originalName || kbPdf.displayName,
       pdfSizeBytes: Number(kbPdf.sizeBytes),
-      pageCount: 0, // 后续由 worker 更新
+      pageCount: kbPdf.pageCount || 0,
       // Config snapshot
       configId: config.id,
       configVersion: config.version,
@@ -150,19 +190,86 @@ export class NoteGenService {
       // Storage
       resultCosPrefix,
       // Charging
-      estimatedCostMinPoints: 0,
-      estimatedCostMaxPoints: 0,
+      estimatedCostMinPoints: estimatedCost.min,
+      estimatedCostMaxPoints: estimatedCost.max,
       chargeStatus: 'not_charged',
+      deductType: 1, // 默认扣除普通积分
     });
 
     const savedJob = await this.noteGenJobRepo.save(newJob);
 
-    // 6. 异步触发 Worker
+    // 8. 异步触发 Worker
     this.triggerWorker(savedJob).catch((err) => {
       this.logger.error(`Failed to trigger worker for job ${jobId}: ${err.message}`, err.stack);
     });
 
     return savedJob;
+  }
+
+  /**
+   * 结算任务
+   * 汇总该 Job 下所有 step_usage 的 Token 消耗 -> 根据模型单价计算总点数 -> 执行扣费
+   */
+  async chargeJob(jobId: string) {
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    // 如果已经结算过，直接返回
+    if (job.chargeStatus === 'charged') {
+      this.logger.log(`Job ${jobId} already charged, skipping.`);
+      return job;
+    }
+
+    // 1. 汇总所有步骤用量
+    const stepUsages = await this.noteGenJobStepUsageRepo.find({ where: { jobId } });
+    let totalPoints = 0;
+    let totalTokens = 0;
+
+    for (const usage of stepUsages) {
+      // 如果该步骤已经结算过，跳过
+      if (usage.chargeStatus === 'charged') {
+        totalPoints += usage.chargedPoints;
+        totalTokens += usage.totalTokens;
+        continue;
+      }
+
+      // 获取模型单价
+      const model = await this.modelsRepo.findOne({ where: { modelName: usage.modelName } });
+      let stepPoints = 0;
+      if (model) {
+        // 计费逻辑参考 ChatService: charge = deduct * Math.ceil(totalTokens / tokenFeeRatio)
+        if (model.isTokenBased && model.tokenFeeRatio > 0) {
+          stepPoints = model.deduct * Math.ceil(usage.totalTokens / model.tokenFeeRatio);
+        } else {
+          // 非 token 计费，按单次扣费
+          stepPoints = model.deduct || 0;
+        }
+      } else {
+        this.logger.warn(`Model ${usage.modelName} not found for job ${jobId} step ${usage.stepNumber}, using 0 points.`);
+      }
+
+      // 更新步骤结算状态
+      usage.chargedPoints = stepPoints;
+      usage.chargeStatus = 'charged';
+      usage.chargedAt = new Date();
+      await this.noteGenJobStepUsageRepo.save(usage);
+
+      totalPoints += stepPoints;
+      totalTokens += usage.totalTokens;
+    }
+
+    // 2. 执行扣费 (允许扣至负数)
+    const deductType = job.deductType || 1;
+    await this.userBalanceService.deductFromBalance(job.userId, deductType, totalPoints, totalTokens, true);
+
+    // 3. 更新 Job 状态
+    job.chargedPoints = totalPoints;
+    job.totalTokens = totalTokens;
+    job.chargeStatus = 'charged';
+    
+    return await this.noteGenJobRepo.save(job);
   }
 
   /**
@@ -233,19 +340,13 @@ export class NoteGenService {
 
     // 2. 构造基础返回对象
     const result: any = {
-      jobId: job.jobId,
-      userId: job.userId,
-      kbPdfId: job.kbPdfId,
-      status: job.status,
+      ...job,
       progressPercent: Number(job.progressPercent),
+      pdfSizeBytes: Number(job.pdfSizeBytes),
       estimatedCostPoints: {
         min: job.estimatedCostMinPoints,
         max: job.estimatedCostMaxPoints,
       },
-      chargedPoints: job.chargedPoints,
-      chargeStatus: job.chargeStatus,
-      updatedAt: job.updatedAt,
-      createdAt: job.createdAt,
     };
 
     // 3. 失败/未完成提示
@@ -258,16 +359,16 @@ export class NoteGenService {
     // 4. 结果文件列表（仅当 status=completed 时返回，或者管理员查询时返回）
     if (job.status === 'completed' || userId === undefined) {
       const artifacts = await this.noteGenJobArtifactRepo.find({
-        where: { jobId, status: 'ready' },
+        where: { jobId },
       });
-      result.resultFiles = artifacts.map((art) => ({
-        type: art.type,
-        status: art.status,
-        fileName: art.fileName,
+      result.artifacts = artifacts.map((art) => ({
+        ...art,
         sizeBytes: Number(art.sizeBytes),
-        updatedAt: art.updatedAt,
       }));
+      // 兼容旧版 resultFiles 字段
+      result.resultFiles = result.artifacts.filter(a => a.status === 'ready');
     } else {
+      result.artifacts = [];
       result.resultFiles = [];
     }
 
@@ -362,6 +463,178 @@ export class NoteGenService {
     });
 
     return { url, expiresAt };
+  }
+
+  /**
+   * 删除指定 PDF 关联的所有任务及产物（级联删除）
+   */
+  async deleteJobsByPdfId(kbPdfId: number) {
+    // 1. 查找所有关联的 Job
+    const jobs = await this.noteGenJobRepo.find({ where: { kbPdfId } });
+    if (jobs.length === 0) return 0;
+
+    // 2. 获取 COS 配置
+    const rawConfigs = await this.globalConfigService.getConfigs([
+      'kbTencentCosStatus',
+      'kbCosSecretId',
+      'kbCosSecretKey',
+      'kbCosBucket',
+      'kbCosRegion',
+    ]);
+    const cosEnabled = Number(rawConfigs.kbTencentCosStatus) === 1;
+    const secretId = rawConfigs.kbCosSecretId;
+    const secretKey = rawConfigs.kbCosSecretKey;
+
+    let cos: TENCENTCOS | null = null;
+    if (cosEnabled && secretId && secretKey) {
+      cos = new TENCENTCOS({
+        SecretId: secretId,
+        SecretKey: secretKey,
+        FileParallelLimit: 10,
+      });
+    }
+
+    let totalArtifactBytes = 0;
+
+    for (const job of jobs) {
+      // 3. 统计产物大小并删除产物记录
+      const artifacts = await this.noteGenJobArtifactRepo.find({
+        where: { jobId: job.jobId },
+      });
+      for (const art of artifacts) {
+        totalArtifactBytes += Number(art.sizeBytes || 0);
+      }
+
+      // 4. 删除 DB 记录
+      await this.noteGenJobArtifactRepo.delete({ jobId: job.jobId });
+      await this.noteGenJobStepUsageRepo.delete({ jobId: job.jobId });
+      await this.noteGenJobRepo.delete({ id: job.id });
+    }
+
+    return totalArtifactBytes;
+  }
+
+  /**
+   * Worker 上报产物元数据并更新配额
+   */
+  async reportArtifacts(dto: ReportArtifactsDto) {
+    const { jobId, artifacts } = dto;
+
+    // 1. 查找 Job
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 2. 开启事务处理产物记录与配额更新
+    let totalBytes = 0;
+    const artifactEntities = artifacts.map((a) => {
+      totalBytes += a.sizeBytes;
+      return this.noteGenJobArtifactRepo.create({
+        jobId,
+        type: a.type,
+        fileName: a.fileName,
+        sizeBytes: a.sizeBytes,
+        cosKey: a.cosKey,
+        cosBucket: a.cosBucket,
+        cosRegion: a.cosRegion,
+        status: 'ready',
+      });
+    });
+
+    await this.noteGenJobArtifactRepo.manager.transaction(async (manager) => {
+      // 批量保存产物记录 (使用 upsert 避免重复上报导致配额重复增加)
+      for (const entity of artifactEntities) {
+        await manager.upsert(NoteGenJobArtifactEntity, entity, ['jobId', 'type']);
+      }
+
+      // 更新用户配额
+      await this.kbService.updateUserUsage(job.userId, totalBytes);
+    });
+
+    this.logger.log(
+      `Job ${jobId}: Reported ${artifacts.length} artifacts, total ${totalBytes} bytes added to user ${job.userId} quota.`,
+    );
+    return { success: true, totalBytes };
+  }
+
+  /**
+   * Worker 更新任务状态与进度
+   */
+  async updateJobStatus(dto: UpdateJobStatusDto) {
+    const { jobId, status, progressPercent, lastErrorCode, lastErrorMessage } = dto;
+
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 更新状态与进度
+    job.status = status;
+    if (progressPercent !== undefined) {
+      job.progressPercent = progressPercent;
+    }
+
+    // 语义同步：如果是 processing 且尚未记录开始时间，则记录
+    if (status === 'processing' && !job.startedAt) {
+      job.startedAt = new Date();
+    }
+
+    // 语义同步：如果是 completed，记录完成时间与清理时间（7天后）
+    if (status === 'completed') {
+      job.completedAt = new Date();
+      job.cleanupAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      job.progressPercent = 100; // 强制 100%
+    }
+
+    // 记录错误信息
+    if (status === 'failed' || status === 'incomplete') {
+      job.lastErrorCode = lastErrorCode || '';
+      job.lastErrorMessage = lastErrorMessage || '';
+      job.lastErrorAt = new Date();
+    }
+
+    return await this.noteGenJobRepo.save(job);
+  }
+
+  /**
+   * Worker 上报步骤用量（Upsert）
+   */
+  async upsertStepUsage(dto: UpsertStepUsageDto) {
+    const { jobId, stepNumber, status, modelName, promptTokens, completionTokens, totalTokens, providerCost, errorCode, errorMessage } = dto;
+
+    const job = await this.noteGenJobRepo.findOne({ where: { jobId } });
+    if (!job) {
+      throw new NotFoundException(`任务 ${jobId} 不存在`);
+    }
+
+    // 查找现有记录
+    let usage = await this.noteGenJobStepUsageRepo.findOne({
+      where: { jobId, stepNumber },
+    });
+
+    if (!usage) {
+      usage = this.noteGenJobStepUsageRepo.create({
+        jobId,
+        stepNumber,
+        startedAt: new Date(),
+      });
+    }
+
+    usage.status = status;
+    usage.modelName = modelName;
+    usage.promptTokens = promptTokens;
+    usage.completionTokens = completionTokens;
+    usage.totalTokens = totalTokens;
+    usage.providerCost = providerCost || 0;
+    usage.errorCode = errorCode || '';
+    usage.errorMessage = errorMessage || '';
+    usage.endedAt = new Date();
+
+    // 注意：chargeStatus 保持为 not_charged，直到 chargeJob 被调用
+    // 除非该步骤之前已经结算过（续跑场景），则不覆盖 chargeStatus
+
+    return await this.noteGenJobStepUsageRepo.save(usage);
   }
 
   /**

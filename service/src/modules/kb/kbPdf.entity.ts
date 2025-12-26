@@ -38,6 +38,9 @@ export class KbPdfEntity extends BaseEntity {
   @Column({ comment: 'COS ETag', length: 128, nullable: true })
   etag: string;
 
+  @Column({ comment: 'PDF 总页数', default: 0 })
+  pageCount: number;
+
   @Column({ comment: '1=active,2=deleting,3=deleted', type: 'tinyint', default: 1 })
   status: number;
 }

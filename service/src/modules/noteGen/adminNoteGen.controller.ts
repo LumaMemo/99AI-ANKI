@@ -5,10 +5,13 @@ import { AdminUpdateNoteGenConfigDto } from './dto/adminUpdateNoteGenConfig.dto'
 import { AdminQueryNoteGenJobsDto } from './dto/adminQueryNoteGenJobs.dto';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { getAdminPath } from '@/common/constants/admin.constant';
 
-@ApiTags('admin/note-gen')
+const adminPath = getAdminPath();
+
+@ApiTags(adminPath.replace(/^\//, '') + '/note-gen')
 @ApiBearerAuth()
-@Controller('admin/note-gen')
+@Controller(adminPath.replace(/^\//, '') + '/note-gen')
 @UseGuards(AdminAuthGuard)
 export class AdminNoteGenController {
   constructor(private readonly noteGenService: NoteGenService) {}

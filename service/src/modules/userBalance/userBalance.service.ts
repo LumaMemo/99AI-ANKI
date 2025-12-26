@@ -255,7 +255,7 @@ export class UserBalanceService {
     return date >= todayStart;
   }
 
-  async deductFromBalance(userId, deductionType, amount, UseAmount = 0) {
+  async deductFromBalance(userId, deductionType, amount, UseAmount = 0, allowNegative = false) {
     // 从数据库中查找特定用户的账户余额记录
     const b = await this.userBalanceEntity.findOne({ where: { userId } });
 
@@ -290,8 +290,13 @@ export class UserBalanceService {
     remainingAmount -= b[member] - newMemberBalance;
     let newNonMemberBalance = b[nonMember];
     if (remainingAmount > 0) {
-      newNonMemberBalance = Math.max(b[nonMember] - remainingAmount, 0);
-      remainingAmount -= b[nonMember] - newNonMemberBalance;
+      if (allowNegative) {
+        newNonMemberBalance = b[nonMember] - remainingAmount;
+        remainingAmount = 0;
+      } else {
+        newNonMemberBalance = Math.max(b[nonMember] - remainingAmount, 0);
+        remainingAmount -= b[nonMember] - newNonMemberBalance;
+      }
     }
 
     // 更新余额对象

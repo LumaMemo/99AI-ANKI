@@ -9,6 +9,8 @@ import { KbService } from './kb.service';
 import { KbFolderEntity } from './kbFolder.entity';
 import { KbPdfEntity } from './kbPdf.entity';
 import { KbUserUsageEntity } from './kbUserUsage.entity';
+import { NoteGenModule } from '../noteGen/noteGen.module';
+import { forwardRef } from '@nestjs/common';
 
 @Module({
   imports: [
@@ -19,8 +21,10 @@ import { KbUserUsageEntity } from './kbUserUsage.entity';
       KbFolderEntity,
       KbPdfEntity,
     ]),
+    forwardRef(() => NoteGenModule),
   ],
   controllers: [KbController],
   providers: [KbService],
+  exports: [KbService],
 })
 export class KbModule {}

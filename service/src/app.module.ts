@@ -28,6 +28,7 @@ import { RedisCacheModule } from './modules/redisCache/redisCache.module';
 import { ShareModule } from './modules/share/share.module';
 import { SigninModule } from './modules/signin/signin.module';
 import { SpaModule } from './modules/spa/spa.module';
+import { getAdminPath } from './common/constants/admin.constant';
 import { StatisticModule } from './modules/statistic/statistic.module';
 import { TaskModule } from './modules/task/task.module';
 import { UploadModule } from './modules/upload/upload.module';
@@ -44,7 +45,7 @@ import { VerificationModule } from './modules/verification/verification.module';
     ServeStaticModule.forRoot(
       {
         rootPath: join(__dirname, '..', 'public/admin'),
-        serveRoot: process.env.ADMIN_SERVE_ROOT || '/admin',
+        serveRoot: getAdminPath(),
       },
       {
         rootPath: join(__dirname, '..', 'public/file'),

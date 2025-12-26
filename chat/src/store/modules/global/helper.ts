@@ -67,6 +67,7 @@ export interface GlobalState {
   mjImageData: any
   workflowContent: string[]
   markdownContent: string
+  showKnowledgeBase: boolean
 }
 
 export function defaultSetting(): UserState {

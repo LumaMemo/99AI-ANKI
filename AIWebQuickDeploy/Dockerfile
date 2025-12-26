@@ -15,7 +15,7 @@ COPY package.json ./
 RUN pnpm install
 
 # 暴露应用端口
-EXPOSE 9520
+EXPOSE 49520
 
 # 启动应用
 CMD ["pm2-runtime", "start", "pm2.conf.json"]

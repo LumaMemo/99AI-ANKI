@@ -27,6 +27,7 @@ import HeaderComponent from './components/Header/index.vue'
 import Message from './components/Message/index.vue'
 import PresetHints from './components/PresetHints/index.vue'
 import WelcomeComponent from './components/Welcome/index.vue'
+import NoteGenAppIcon from './components/NoteGenAppIcon.vue'
 
 // ============== Composition API ==============
 import { DIALOG_TABS } from '@/store/modules/global'
@@ -1282,12 +1283,14 @@ provide('tryParseJson', tryParseJson)
 </script>
 
 <template>
-  <Sider class="h-full" />
   <div class="flex h-full w-full">
     <!-- Main container flex -->
     <div
       class="glass-card relative overflow-hidden h-full w-full flex flex-col transition-all duration-300 ease-in-out transform"
     >
+      <!-- 笔记生成入口图标 -->
+      <NoteGenAppIcon v-if="!useGlobalStore.showAppListComponent" />
+
       <!-- Background Image Layer -->
       <div
         v-if="activeChatBackgroundImg"

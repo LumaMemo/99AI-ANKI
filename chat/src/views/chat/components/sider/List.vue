@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchCollectAppAPI } from '@/api/appStore'
 import type { ResData } from '@/api/types'
+import { useRouter } from 'vue-router'
 import SvgIcon from '@/components/common/SvgIcon/index.vue'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
@@ -13,7 +14,7 @@ import {
 } from '@/store'
 import { dialog } from '@/utils/dialog'
 import { message } from '@/utils/message'
-import { ApplicationTwo, Delete, Down, Unlike, Up } from '@icon-park/vue-next'
+import { ApplicationTwo, Delete, Down, Notes, Unlike, Up } from '@icon-park/vue-next'
 import { computed, inject, ref, watch } from 'vue'
 import ListItem from './ListItem.vue'
 
@@ -31,6 +32,7 @@ const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStore()
 const ms = message()
+const router = useRouter()
 
 // 从chatBase inject弹窗相关方法
 const showAppConfigModal = inject('showAppConfigModal') as
@@ -82,6 +84,14 @@ async function handleSelect(group: Chat.History) {
 
   await chatStore.setActiveGroup(uuid)
 
+  if (isMobile.value) appStore.setSiderCollapsed(true)
+}
+
+async function handleNoteGenClick() {
+  try {
+    await chatStore.ensureNoteGenGroupActive()
+  } catch {}
+  router.push('/note-gen')
   if (isMobile.value) appStore.setSiderCollapsed(true)
 }
 
@@ -284,6 +294,19 @@ const isAppsHovered = ref(false)
               class="ml-1 mr-1 text-sm my-1 text-[color:var(--text-tertiary)]"
             />
             {{ t('chat.appSquare') }}
+          </div>
+
+          <!-- 笔记生成入口 -->
+          <div
+            class="relative group flex items-center gap-3 px-3 py-1 break-all rounded-xl cursor-pointer font-medium text-sm bg-transparent border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color] duration-200"
+            @click="handleNoteGenClick"
+          >
+            <Notes
+              theme="outline"
+              size="25"
+              class="ml-1 mr-1 text-sm my-1 text-[color:var(--text-tertiary)]"
+            />
+            笔记生成
           </div>
         </div>
 

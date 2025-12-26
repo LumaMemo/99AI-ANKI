@@ -7,7 +7,13 @@ import { NoteGenJobStepUsageEntity } from './noteGenJobStepUsage.entity';
 import { NoteGenService } from './noteGen.service';
 import { NoteGenController } from './noteGen.controller';
 import { AdminNoteGenController } from './adminNoteGen.controller';
+import { WorkerNoteGenController } from './workerNoteGen.controller';
 import { KbPdfEntity } from '../kb/kbPdf.entity';
+import { ModelsEntity } from '../models/models.entity';
+import { KbModule } from '../kb/kb.module';
+import { forwardRef } from '@nestjs/common';
+import { GlobalConfigModule } from '../globalConfig/globalConfig.module';
+import { UserBalanceModule } from '../userBalance/userBalance.module';
 
 @Module({
   imports: [
@@ -17,10 +23,14 @@ import { KbPdfEntity } from '../kb/kbPdf.entity';
       NoteGenJobArtifactEntity,
       NoteGenJobStepUsageEntity,
       KbPdfEntity,
+      ModelsEntity,
     ]),
+    forwardRef(() => KbModule),
+    GlobalConfigModule,
+    UserBalanceModule,
   ],
   providers: [NoteGenService],
-  controllers: [NoteGenController, AdminNoteGenController],
+  controllers: [NoteGenController, AdminNoteGenController, WorkerNoteGenController],
   exports: [NoteGenService],
 })
 export class NoteGenModule {}

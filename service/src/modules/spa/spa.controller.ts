@@ -1,5 +1,6 @@
 import { Controller, Get, Logger, Next, Req, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { getAdminPath } from '@/common/constants/admin.constant';
 import { Request, Response } from 'express';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -18,7 +19,7 @@ export class SpaController {
     this.exists = fs.existsSync(this.indexPath);
 
     // 获取管理后台路径
-    this.adminPath = process.env.ADMIN_SERVE_ROOT || '/admin';
+    this.adminPath = getAdminPath();
     Logger.log(`管理后台路径已配置: ${this.adminPath}`, 'SpaController');
   }
 
