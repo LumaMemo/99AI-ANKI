@@ -104,4 +104,10 @@ export class KbController {
     const userId = Number(req?.user?.id);
     return this.kbService.getCardDetail(userId, Number(pdfId), path);
   }
+
+  @Get('cards/search')
+  async searchCards(@Req() req: any, @Query('pdfId') pdfId: string, @Query('keyword') keyword: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.searchCards(userId, Number(pdfId), keyword);
+  }
 }

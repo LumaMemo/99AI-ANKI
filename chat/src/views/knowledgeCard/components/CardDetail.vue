@@ -10,6 +10,7 @@ interface Props {
   pdfId: number
   path: string
   name: string
+  keyword?: string
 }
 
 const props = defineProps<Props>()
@@ -122,7 +123,7 @@ watch(() => props.path, () => {
             </h2>
             
             <div class="pl-3.5 border-l border-gray-100 dark:border-gray-800 ml-0.5">
-              <RecursiveRenderer :value="value" :color="currentParadigm.color" />
+              <RecursiveRenderer :value="value" :color="currentParadigm.color" :keyword="keyword" />
             </div>
           </div>
         </div>
@@ -178,15 +179,19 @@ const RecursiveRenderer = defineComponent({
     depth: {
       type: Number,
       default: 0
+    },
+    keyword: {
+      type: String,
+      default: ''
     }
   },
   setup(props) {
     return () => {
-      const { value, color, depth } = props
+      const { value, color, depth, keyword } = props
 
       // Case 1: String (Markdown)
       if (typeof value === 'string') {
-        return h(MarkdownRenderer, { content: value })
+        return h(MarkdownRenderer, { content: value, highlight: keyword })
       }
 
       // Case 2: Array
@@ -194,7 +199,7 @@ const RecursiveRenderer = defineComponent({
         // If it's an array of strings, render as a list
         if (value.every(item => typeof item === 'string')) {
           return h('ul', { class: 'list-disc space-y-2' }, 
-            value.map(item => h('li', null, [h(MarkdownRenderer, { content: item })]))
+            value.map(item => h('li', null, [h(MarkdownRenderer, { content: item, highlight: keyword })]))
           )
         }
         
@@ -205,7 +210,7 @@ const RecursiveRenderer = defineComponent({
               class: 'text-sm font-bold mb-3 uppercase tracking-wider opacity-50',
               style: { color }
             }, `Item ${index + 1}`),
-            h(RecursiveRenderer, { value: item, color, depth: depth + 1 })
+            h(RecursiveRenderer, { value: item, color, depth: depth + 1, keyword })
           ]))
         )
       }
@@ -222,7 +227,7 @@ const RecursiveRenderer = defineComponent({
               k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
             ]),
             h('div', { class: 'pl-3 border-l border-gray-50 dark:border-gray-800' }, [
-              h(RecursiveRenderer, { value: v, color, depth: depth + 1 })
+              h(RecursiveRenderer, { value: v, color, depth: depth + 1, keyword })
             ])
           ]))
         )

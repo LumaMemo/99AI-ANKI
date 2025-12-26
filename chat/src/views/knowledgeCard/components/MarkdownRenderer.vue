@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css'
 
 interface Props {
   content: string
+  highlight?: string
 }
 
 const props = defineProps<Props>()
@@ -32,10 +33,18 @@ mdi.use(mdKatex, { blockClass: 'katex-block', errorColor: ' #cc0000' })
 const renderedContent = computed(() => {
   if (!props.content) return ''
   
-  // Pre-process: Convert $$...$$ to $...$ for better mobile display if needed, 
-  // but the design says "convert block formula to inline for mobile". 
-  // For now, let's keep it standard and handle via CSS.
-  return mdi.render(props.content)
+  let html = mdi.render(props.content)
+
+  if (props.highlight && props.highlight.trim()) {
+    const keyword = props.highlight.trim()
+    // Escape special characters for regex
+    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Avoid highlighting inside HTML tags
+    const regex = new RegExp(`(?![^<]*>)(${escapedKeyword})`, 'gi')
+    html = html.replace(regex, '<span class="search-highlight">$1</span>')
+  }
+
+  return html
 })
 </script>
 
@@ -101,5 +110,13 @@ const renderedContent = computed(() => {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.5rem 0;
+}
+
+.search-highlight {
+  background-color: rgba(251, 191, 36, 0.3); /* Morandi Yellow */
+  border-bottom: 2px solid #FBBF24;
+  font-weight: bold;
+  border-radius: 2px;
+  padding: 0 2px;
 }
 </style>

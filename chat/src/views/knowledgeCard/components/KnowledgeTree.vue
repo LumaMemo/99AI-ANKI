@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { fetchKbCardTreeAPI } from '@/api/kb'
+import { fetchKbCardSearchAPI, fetchKbCardTreeAPI } from '@/api/kb'
 import SvgIcon from '@/components/common/SvgIcon/index.vue'
+import { useDebounceFn } from '@vueuse/core'
 import TreeItem from './TreeItem.vue'
 
 interface Props {
@@ -23,10 +24,12 @@ interface TreeNode {
 
 const treeData = ref<TreeNode[]>([])
 const loading = ref(false)
+const searching = ref(false)
 const selectedPath = ref('')
 const searchQuery = ref('')
+const searchResults = ref<any[]>([])
 
-// 过滤后的树数据
+// 过滤后的树数据 (目录匹配)
 const filteredTreeData = computed(() => {
   if (!searchQuery.value)
     return treeData.value
@@ -48,6 +51,32 @@ const filteredTreeData = computed(() => {
     }, [])
   }
   return filter(treeData.value)
+})
+
+const handleSearch = useDebounceFn(async () => {
+  if (!searchQuery.value || searchQuery.value.trim().length < 1) {
+    searchResults.value = []
+    return
+  }
+
+  searching.value = true
+  try {
+    const res = await fetchKbCardSearchAPI({ 
+      pdfId: props.pdfId, 
+      keyword: searchQuery.value 
+    })
+    if (res.code === 200) {
+      searchResults.value = res.data
+    }
+  } catch (error) {
+    console.error('Deep search failed:', error)
+  } finally {
+    searching.value = false
+  }
+}, 500)
+
+watch(searchQuery, () => {
+  handleSearch()
 })
 
 async function loadTree() {
@@ -101,7 +130,7 @@ function toggleNode(node: TreeNode) {
 
 function selectNode(node: TreeNode) {
   selectedPath.value = node.path
-  emit('select', node)
+  emit('select', { ...node, keyword: searchQuery.value })
 }
 
 onMounted(() => {
@@ -134,12 +163,47 @@ watch(() => props.pdfId, () => {
         <p>加载目录中...</p>
       </div>
       
-      <div v-else-if="filteredTreeData.length === 0" class="p-8 text-center text-gray-400 text-sm">
-        <SvgIcon icon="ri:inbox-line" class="text-3xl mb-2 mx-auto opacity-20" />
-        <p>{{ searchQuery ? '未找到匹配内容' : '暂无知识卡片' }}</p>
-      </div>
-
       <div v-else class="px-2">
+        <!-- Search Results (Content Matches) -->
+        <div v-if="searchQuery" class="mb-4">
+          <div class="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between">
+            <span>内容匹配</span>
+            <div v-if="searching" class="animate-spin w-3 h-3 border border-current border-t-transparent rounded-full"></div>
+          </div>
+          
+          <div v-if="searchResults.length > 0" class="space-y-1 mt-1">
+            <div 
+              v-for="result in searchResults" 
+              :key="result.path"
+              class="group px-3 py-2 rounded-lg hover:bg-primary/5 cursor-pointer transition-all border border-transparent hover:border-primary/10"
+              @click="emit('select', { ...result, isTopic: true, isLeaf: true, name: result.topic, keyword: searchQuery })"
+            >
+              <div class="flex items-center gap-2 mb-1">
+                <SvgIcon icon="ri:file-text-line" class="text-primary text-xs" />
+                <span class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate group-hover:text-primary">
+                  {{ result.topic }}
+                </span>
+              </div>
+              <div v-if="result.snippet" class="text-[10px] text-gray-400 line-clamp-2 pl-5 italic">
+                {{ result.snippet }}
+              </div>
+            </div>
+          </div>
+          <div v-else-if="!searching" class="px-3 py-2 text-[10px] text-gray-400 italic">
+            未发现内容匹配
+          </div>
+        </div>
+
+        <!-- Directory Tree -->
+        <div v-if="searchQuery" class="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+          目录匹配
+        </div>
+
+        <div v-if="filteredTreeData.length === 0 && !searching && searchResults.length === 0" class="p-8 text-center text-gray-400 text-sm">
+          <SvgIcon icon="ri:inbox-line" class="text-3xl mb-2 mx-auto opacity-20" />
+          <p>{{ searchQuery ? '未找到匹配内容' : '暂无知识卡片' }}</p>
+        </div>
+
         <TreeItem 
           v-for="node in filteredTreeData" 
           :key="node.path" 

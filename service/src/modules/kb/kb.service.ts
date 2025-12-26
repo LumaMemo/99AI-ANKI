@@ -865,6 +865,158 @@ export class KbService {
     }
   }
 
+  /**
+   * 深度搜索知识卡片内容
+   */
+  async searchCards(userId: number, pdfId: number, keyword: string) {
+    if (!userId) throw new BadRequestException('未登录');
+    if (!keyword || keyword.trim().length < 1) return [];
+
+    const id = Number.isFinite(pdfId) ? Math.floor(pdfId) : 0;
+    if (!id) throw new BadRequestException('非法文件ID');
+
+    const record = await this.pdfRepo.findOne({ where: { id, userId } });
+    if (!record || Number(record.status) === 3) throw new NotFoundException('文件不存在');
+
+    const cfg = await this.getKbCosConfigOrThrow();
+    const cos = new TENCENTCOS({
+      SecretId: cfg.secretId,
+      SecretKey: cfg.secretKey,
+    });
+
+    const lastSlashIndex = record.cosKey.lastIndexOf('/');
+    const folderPrefix = lastSlashIndex !== -1 ? record.cosKey.substring(0, lastSlashIndex + 1) : '';
+    const cardPrefix = `${folderPrefix}anki_card_all/`;
+
+    // 1. 获取所有 base.json 的路径
+    const allObjects: any[] = [];
+    let marker: string | undefined = undefined;
+    do {
+      const list: any = await new Promise((resolve, reject) => {
+        cos.getBucket(
+          {
+            Bucket: removeSpecialCharacters(record.cosBucket || cfg.bucket),
+            Region: removeSpecialCharacters(record.cosRegion || cfg.region),
+            Prefix: cardPrefix,
+            Marker: marker,
+            MaxKeys: 1000,
+          },
+          (err, data) => {
+            if (err) return reject(err);
+            resolve(data);
+          },
+        );
+      });
+      if (list.Contents) {
+        allObjects.push(...list.Contents);
+      }
+      marker = list.IsTruncated === 'true' ? list.NextMarker : undefined;
+    } while (marker);
+
+    const baseJsonKeys = allObjects
+      .map((obj) => obj.Key as string)
+      .filter((key) => key.endsWith('base.json'));
+
+    // 2. 并发读取并搜索 (限制并发数以防 COS 报错)
+    const results: any[] = [];
+    const batchSize = 20;
+    const lowerKeyword = keyword.toLowerCase();
+
+    for (let i = 0; i < baseJsonKeys.length; i += batchSize) {
+      const batch = baseJsonKeys.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (key) => {
+          try {
+            const data: any = await new Promise((resolve, reject) => {
+              cos.getObject(
+                {
+                  Bucket: removeSpecialCharacters(record.cosBucket || cfg.bucket),
+                  Region: removeSpecialCharacters(record.cosRegion || cfg.region),
+                  Key: key,
+                },
+                (err, data) => {
+                  if (err) return reject(err);
+                  resolve(data);
+                },
+              );
+            });
+            const card = JSON.parse(data.Body.toString());
+            
+            // 搜索逻辑
+            let matchType: 'topic' | 'content' | 'uid' | null = null;
+            let snippet = '';
+
+            const topic = card.topic || '';
+            const uid = card.uid || '';
+
+            if (topic.toLowerCase().includes(lowerKeyword)) {
+              matchType = 'topic';
+            } else if (uid.toLowerCase().includes(lowerKeyword)) {
+              matchType = 'uid';
+            } else {
+              // 递归搜索 content
+              const contentMatch = this.searchInObject(card.content, lowerKeyword);
+              if (contentMatch) {
+                matchType = 'content';
+                snippet = contentMatch;
+              }
+            }
+
+            if (matchType) {
+              return {
+                topic: card.topic,
+                path: key,
+                type: card.type,
+                matchType,
+                snippet,
+                uid: card.uid,
+              };
+            }
+          } catch (e) {
+            console.error(`Failed to search card at ${key}:`, e);
+          }
+          return null;
+        }),
+      );
+      results.push(...batchResults.filter((r) => r !== null));
+    }
+
+    return results;
+  }
+
+  /**
+   * 在对象中递归搜索关键词并返回摘要
+   */
+  private searchInObject(obj: any, keyword: string): string | null {
+    if (!obj) return null;
+    if (typeof obj === 'string') {
+      const idx = obj.toLowerCase().indexOf(keyword);
+      if (idx !== -1) {
+        const start = Math.max(0, idx - 20);
+        const end = Math.min(obj.length, idx + keyword.length + 40);
+        let snippet = obj.substring(start, end);
+        if (start > 0) snippet = '...' + snippet;
+        if (end < obj.length) snippet = snippet + '...';
+        return snippet;
+      }
+      return null;
+    }
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const res = this.searchInObject(item, keyword);
+        if (res) return res;
+      }
+      return null;
+    }
+    if (typeof obj === 'object') {
+      for (const key in obj) {
+        const res = this.searchInObject(obj[key], keyword);
+        if (res) return res;
+      }
+    }
+    return null;
+  }
+
   private async deleteCosDirectory(cos: TENCENTCOS, bucket: string, region: string, prefix: string) {
     if (!prefix || prefix === '/' || prefix.trim() === '') return;
 

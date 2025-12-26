@@ -25,14 +25,38 @@ const selectedNode = ref<any>(null)
 const rootNodes = ref<any[]>([])
 const loading = ref(false)
 
+function processTreeData(data: any[]): any[] {
+  return data.map((node) => {
+    const newNode = { ...node }
+    
+    if (newNode.children && newNode.children.length > 0) {
+      // Check if this folder is a Topic (contains base.json)
+      const baseJsonIndex = newNode.children.findIndex((child: any) => child.name === 'base.json')
+      if (baseJsonIndex !== -1) {
+        newNode.isTopic = true
+        newNode.isLeaf = true // Mark as leaf for the dispatcher
+        newNode.path = newNode.children[baseJsonIndex].path // Use base.json path for detail fetching
+        // Remove base.json from children to keep UI clean
+        newNode.children.splice(baseJsonIndex, 1)
+      }
+      
+      if (newNode.children.length > 0) {
+        newNode.children = processTreeData(newNode.children)
+      }
+    }
+    
+    return newNode
+  }).filter(node => !node.isFile || node.name === 'base.json')
+}
+
 // Load root nodes for the grid when PDF changes
 async function loadRootNodes() {
   if (!pdfId.value) return
   loading.value = true
   try {
-    const res = await fetchKbCardTreeAPI(pdfId.value)
+    const res = await fetchKbCardTreeAPI({ pdfId: pdfId.value })
     if (res.code === 200) {
-      rootNodes.value = res.data
+      rootNodes.value = processTreeData(res.data)
     }
   } catch (error) {
     console.error('Failed to load root nodes:', error)
@@ -263,6 +287,7 @@ const breadcrumbs = computed(() => {
                 :pdf-id="pdfId"
                 :path="selectedNode.path"
                 :name="selectedNode.name"
+                :keyword="selectedNode.keyword"
               />
             </div>
           </div>
