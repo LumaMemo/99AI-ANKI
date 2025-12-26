@@ -6,6 +6,7 @@ import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as compression from 'compression';
+import helmet from 'helmet';
 import { randomBytes } from 'crypto';
 import * as Dotenv from 'dotenv';
 import * as fs from 'fs';
@@ -83,6 +84,12 @@ async function bootstrap() {
   // 根据环境变量设置全局 Logger
   app.useLogger(app.get(CustomLoggerService));
 
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // 如果有内联脚本需求可关闭或精细配置
+    }),
+  );
+
   // 使用我们的自定义XML中间件替代express-xml-bodyparser
   const xmlMiddleware = new FastXmlMiddleware();
   app.use(xmlMiddleware.use.bind(xmlMiddleware));
@@ -101,11 +108,11 @@ async function bootstrap() {
   );
 
   // 启用并配置 CORS
+  const isDev = process.env.ISDEV === 'true';
   app.enableCors({
-    origin: '*', // 或者配置允许的具体域名
+    origin: isDev ? '*' : ['https://lumamemo.com', 'https://www.lumamemo.com'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    credentials: true,
   });
 
   // app.enableCors();
