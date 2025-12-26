@@ -278,7 +278,7 @@ export class NoteGenService {
   private async triggerWorker(job: NoteGenJobEntity) {
     // 1. 获取 Worker 配置
     const configs = await this.globalConfigService.getConfigs(['noteGenWorkerUrl', 'noteGenWorkerToken']);
-    const url = configs?.noteGenWorkerUrl || 'http://127.0.0.1:8000/api/pdf-note/generate-notes';
+    const url = configs?.noteGenWorkerUrl || 'http://pdf-to-anki:8000/api/pdf-note/note-gen';
     const token = configs?.noteGenWorkerToken || 'devtoken';
 
     this.logger.log(`Triggering worker for job ${job.jobId} at ${url}`);
