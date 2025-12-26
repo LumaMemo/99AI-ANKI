@@ -76,6 +76,7 @@ function processTreeData(data: any[]): TreeNode[] {
       const baseJsonIndex = newNode.children.findIndex(child => child.name === 'base.json')
       if (baseJsonIndex !== -1) {
         newNode.isTopic = true
+        newNode.isLeaf = true // Mark as leaf for the dispatcher
         newNode.path = newNode.children[baseJsonIndex].path // Use base.json path for detail fetching
         // Remove base.json from children to keep UI clean
         newNode.children.splice(baseJsonIndex, 1)
