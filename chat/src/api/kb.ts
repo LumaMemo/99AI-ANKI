@@ -102,6 +102,27 @@ export function retryDeleteKbFileAPI(fileId: number) {
   })
 }
 
+export function fetchKbCardTreeAPI(params: { pdfId: number }) {
+  return get<any[]>({
+    url: '/kb/cards/tree',
+    data: params,
+  })
+}
+
+export function fetchKbCardDetailAPI(params: { pdfId: number; path: string }) {
+  return get<any>({
+    url: '/kb/cards/detail',
+    data: params,
+  })
+}
+
+export function fetchKbCardSearchAPI(params: { pdfId: number; keyword: string }) {
+  return get<any[]>({
+    url: '/kb/cards/search',
+    data: params,
+  })
+}
+
 export function fetchKbFileSignedUrlAPI(fileId: number) {
   return get<{ url: string; expiresAt: number }>({
     url: `/kb/files/${fileId}/signed-url`,

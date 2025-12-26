@@ -95,6 +95,11 @@ async function handleNoteGenClick() {
   if (isMobile.value) appStore.setSiderCollapsed(true)
 }
 
+function handleKnowledgeCardClick() {
+  router.push('/knowledge-card')
+  if (isMobile.value) appStore.setSiderCollapsed(true)
+}
+
 async function addNewChatGroupFromApp(appId: number) {
   console.log('=== 侧边栏应用启动调试 ===')
   console.log('点击的应用ID:', appId)
@@ -307,6 +312,19 @@ const isAppsHovered = ref(false)
               class="ml-1 mr-1 text-sm my-1 text-[color:var(--text-tertiary)]"
             />
             笔记生成
+          </div>
+
+          <!-- 知识卡片库入口 -->
+          <div
+            class="relative group flex items-center gap-3 px-3 py-1 break-all rounded-xl cursor-pointer font-medium text-sm bg-transparent border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color] duration-200"
+            @click="handleKnowledgeCardClick"
+          >
+            <ApplicationTwo
+              theme="outline"
+              size="25"
+              class="ml-1 mr-1 text-sm my-1 text-[color:var(--text-tertiary)]"
+            />
+            知识卡片库
           </div>
         </div>
 

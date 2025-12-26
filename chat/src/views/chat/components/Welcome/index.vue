@@ -3,9 +3,12 @@ import { fetchQueryOneCatAPI } from '@/api/appStore'
 import logo from '@/assets/logo.png'
 import { useAuthStore, useChatStore } from '@/store'
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ApplicationTwo } from '@icon-park/vue-next'
 
 const appDetail: any = ref({ name: '', des: '', coverImg: '' })
 const authStore = useAuthStore()
+const router = useRouter()
 const logoPath = computed(() => authStore.globalConfig.clientLogoPath || logo)
 // 获取用户昵称
 const nickname = computed(() => (authStore.userInfo as any)?.nickname || '')

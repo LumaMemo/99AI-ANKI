@@ -15,6 +15,11 @@ const routes: Array<RouteRecordRaw> = [
         name: 'NoteGen',
         component: () => import('@/views/noteGen/index.vue'),
       },
+      {
+        path: 'knowledge-card',
+        name: 'KnowledgeCard',
+        component: () => import('@/views/knowledgeCard/index.vue'),
+      },
     ],
   },
   {

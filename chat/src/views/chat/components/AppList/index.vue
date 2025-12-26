@@ -8,9 +8,10 @@ import { t } from '@/locales'
 import { useAppCatStore, useAuthStoreWithout, useChatStore, useGlobalStoreWithOut } from '@/store'
 import { DIALOG_TABS } from '@/store/modules/global'
 import { message } from '@/utils/message'
-import { Left, Right, Search, Star, VipOne } from '@icon-park/vue-next'
+import { Left, Right, Search, Star, VipOne, ApplicationTwo } from '@icon-park/vue-next'
 import PinyinMatch from 'pinyin-match'
 import { computed, inject, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 // 接口定义
 interface FormField {
@@ -55,6 +56,7 @@ const ms = message()
 const appCatStore = useAppCatStore()
 const keyword = ref('')
 const chatStore = useChatStore()
+const router = useRouter()
 
 const catId = computed(() => appCatStore.catId)
 const appList = ref<App[]>([])

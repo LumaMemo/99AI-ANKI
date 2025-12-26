@@ -14,9 +14,10 @@ import {
 } from '../../../../api/kb'
 import { useAuthStore, useChatStore, useGlobalStoreWithOut } from '../../../../store'
 import { useBasicLayout } from '../../../../hooks/useBasicLayout'
-import { Close, CheckOne } from '@icon-park/vue-next'
+import { Close, CheckOne, ApplicationTwo } from '@icon-park/vue-next'
 import { dialog } from '../../../../utils/dialog'
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 interface FolderTreeNode {
   id: number
@@ -41,10 +42,19 @@ const props = defineProps<{
 const useGlobalStore = useGlobalStoreWithOut()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
+const router = useRouter()
 const isLogin = computed(() => authStore.isLogin)
 // 聊天模块：将 640–767 也视为移动端（<md）
 const { isSmallMd: isMobile } = useBasicLayout()
 const dlg = dialog()
+
+function viewKnowledgeCards(f: PdfRow) {
+  router.push({
+    path: '/knowledge-card',
+    query: { pdfId: f.id },
+  })
+  closePane()
+}
 
 const visible = computed({
   get: () => useGlobalStore.showKnowledgeBase,
@@ -666,9 +676,15 @@ watch(
                     <ul v-else class="mt-2 space-y-2">
                       <li v-for="f in files" :key="f.id">
                         <div
-                          class="w-full flex items-start gap-3 px-3 py-3 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color]"
-                          :class="{ 'bg-[color:var(--glass-bg-secondary)] border-[color:var(--glass-border)] ring-1 ring-[color:var(--btn-bg-primary)]': chatStore.selectedKbPdfId === f.id }"
+                          class="w-full flex items-start gap-3 px-3 py-3 rounded-2xl border border-transparent bg-transparent text-left hover:bg-[color:var(--glass-bg-secondary)] hover:border-[color:var(--glass-border)] transition-[background,border-color] relative overflow-hidden"
+                          :class="{ 
+                            'bg-[color:var(--glass-bg-secondary)] border-[color:var(--glass-border)] ring-1 ring-[color:var(--btn-bg-primary)]': chatStore.selectedKbPdfId === f.id,
+                            'aurora-purple-marker': true 
+                          }"
                         >
+                          <!-- 极光紫标记 (装饰性) -->
+                          <div class="absolute top-0 right-0 w-16 h-16 bg-purple-500/5 blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
+
                           <div class="shrink-0 w-9 h-9 rounded-2xl bg-[color:var(--glass-bg-secondary)] border border-[color:var(--glass-border)] flex items-center justify-center relative">
                             <span class="text-[10px] font-bold text-[color:var(--text-tertiary)]">PDF</span>
                             <div v-if="chatStore.selectedKbPdfId === f.id" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[color:var(--btn-bg-primary)] flex items-center justify-center text-white">
@@ -679,8 +695,9 @@ watch(
                           <div class="flex-1 min-w-0 flex flex-col gap-2">
                             <!-- 第一行：名称和大小 -->
                             <div class="flex items-center justify-between gap-2">
-                              <div class="truncate text-sm font-medium text-[color:var(--text-primary)]">
+                              <div class="truncate text-sm font-medium text-[color:var(--text-primary)] flex items-center gap-1">
                                 {{ f.displayName || f.originalName }}
+                                <span class="px-1 py-0.5 rounded text-[8px] bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 font-bold scale-90 origin-left">卡片</span>
                               </div>
                               <div class="shrink-0 text-[10px] text-[color:var(--text-tertiary)]">
                                 {{ formatBytes(f.sizeBytes) }}
@@ -707,6 +724,17 @@ watch(
                               </button>
                               <button
                                 type="button"
+                                class="text-xs font-bold text-purple-500 hover:opacity-80 flex items-center gap-1"
+                                @click.stop="viewKnowledgeCards(f)"
+                                :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
+                                :disabled="Number(f.status) === 2"
+                                aria-label="查看知识卡片"
+                              >
+                                <ApplicationTwo size="14" />
+                                <span>查看卡片</span>
+                              </button>
+                              <button
+                                type="button"
                                 class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
                                 @click.stop="previewPdfFile(f)"
                                 :class="{ 'opacity-60 cursor-not-allowed': previewingId === f.id || Number(f.status) === 2 }"
@@ -714,16 +742,6 @@ watch(
                                 aria-label="预览 PDF"
                               >
                                 {{ previewingId === f.id ? '预览中…' : '预览' }}
-                              </button>
-                              <button
-                                type="button"
-                                class="text-xs text-[color:var(--text-tertiary)] hover:text-[color:var(--text-primary)]"
-                                @click.stop="renamePdfFile(f)"
-                                :class="{ 'opacity-60 cursor-not-allowed': Number(f.status) === 2 }"
-                                :disabled="Number(f.status) === 2"
-                                aria-label="重命名 PDF"
-                              >
-                                重命名
                               </button>
                               <button
                                 type="button"

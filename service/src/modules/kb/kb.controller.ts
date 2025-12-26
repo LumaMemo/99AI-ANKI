@@ -92,4 +92,22 @@ export class KbController {
     const folderId = Number(query?.folderId ?? 0);
     return this.kbService.uploadPdfToCos(userId, folderId, file);
   }
+
+  @Get('cards/tree')
+  async getCardTree(@Req() req: any, @Query('pdfId') pdfId: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.getCardTree(userId, Number(pdfId));
+  }
+
+  @Get('cards/detail')
+  async getCardDetail(@Req() req: any, @Query('pdfId') pdfId: string, @Query('path') path: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.getCardDetail(userId, Number(pdfId), path);
+  }
+
+  @Get('cards/search')
+  async searchCards(@Req() req: any, @Query('pdfId') pdfId: string, @Query('keyword') keyword: string) {
+    const userId = Number(req?.user?.id);
+    return this.kbService.searchCards(userId, Number(pdfId), keyword);
+  }
 }
