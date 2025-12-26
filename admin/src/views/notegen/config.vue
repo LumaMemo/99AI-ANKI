@@ -11,7 +11,7 @@ import { utcToShanghaiTime } from '@/utils/utcFormatTime';
 import { ElMessage } from 'element-plus';
 
 const loading = ref(false);
-const models = ref([]);
+const models = ref<any[]>([]);
 const metadata = reactive({
   version: 0,
   updatedByAdminId: 0,
@@ -24,13 +24,13 @@ const config = reactive({
   remark: '',
   configJson: {
     steps: {
-      "1": { modelName: "gpt-4o-mini", concurrency: 50, maxRetries: 3, zoom: 3.0 },
-      "2": { modelName: "gemini-1.5-flash", chunkSize: 10, overlapPages: 3 },
+      "1": { modelName: "gpt-5-mini", concurrency: 50, maxRetries: 3, zoom: 3.0 },
+      "2": { modelName: "gemini-3-pro-preview", chunkSize: 10, overlapPages: 3 },
       "3": { softLimitChars: 4000, hardLimitChars: 16384 },
-      "4": { modelName: "gemini-1.5-pro", concurrency: 50, maxRetries: 3 },
+      "4": { modelName: "gemini-3-pro-preview", concurrency: 50, maxRetries: 3 },
       "5": { reserved: true },
       "8": { outputs: { markdown: false, markdownMarkmap: true, word: false } }
-    }
+    } as any
   }
 });
 
