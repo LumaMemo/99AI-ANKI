@@ -44,7 +44,7 @@ const handleDownload = async (row: any) => {
   }
 };
 
-const getStatusType = (status: string) => {
+const getStatusType = (status: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' => {
   switch (status) {
     case 'completed': return 'success';
     case 'processing': return 'primary';
@@ -65,12 +65,12 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status;
 };
 
-const getStepStatusType = (status: string) => {
+const getStepStatusType = (status: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' => {
   switch (status) {
     case 'success': return 'success';
     case 'failed': return 'danger';
     case 'skipped': return 'info';
-    default: return '';
+    default: return 'info';
   }
 };
 
