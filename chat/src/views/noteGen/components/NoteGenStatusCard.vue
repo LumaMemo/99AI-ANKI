@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Download, Refresh, Loading } from '@icon-park/vue-next'
+import { Download, Refresh, Loading, ApplicationTwo } from '@icon-park/vue-next'
 import { fetchNoteGenFileSignedUrl } from '@/api/noteGen'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   job: any
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'retry'): void
 }>()
 
+const router = useRouter()
 const status = computed(() => props.job?.status || 'created')
 const progress = computed(() => props.job?.progressPercent || 0)
 const userMessage = computed(() => props.job?.userMessage)
@@ -61,6 +63,14 @@ function handleRefresh() {
 
 function handleRetry() {
   emit('retry')
+}
+
+function enterCardMode() {
+  if (!props.job?.kbPdfId) return
+  router.push({
+    path: '/knowledge-card',
+    query: { pdfId: props.job.kbPdfId }
+  })
 }
 
 function getSegmentClass(seg: any) {
@@ -124,20 +134,30 @@ function getSegmentClass(seg: any) {
     </div>
 
     <!-- 下载区域 -->
-    <div v-if="status === 'completed'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div v-if="status === 'completed'" class="flex flex-col gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button 
+          class="flex items-center justify-center gap-2 p-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-lg shadow-blue-500/20"
+          @click="handleDownload('markdown-markmap')"
+        >
+          <Download size="20" />
+          <span>下载 Markdown/思维导图</span>
+        </button>
+        <button 
+          class="flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors shadow-lg shadow-indigo-500/20"
+          @click="handleDownload('word')"
+        >
+          <Download size="20" />
+          <span>下载 Word 笔记</span>
+        </button>
+      </div>
+      
       <button 
-        class="flex items-center justify-center gap-2 p-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-lg shadow-blue-500/20"
-        @click="handleDownload('markdown-markmap')"
+        class="flex items-center justify-center gap-2 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white transition-all shadow-lg shadow-purple-500/30 transform hover:scale-[1.02] active:scale-[0.98]"
+        @click="enterCardMode"
       >
-        <Download size="20" />
-        <span>下载 Markdown/思维导图</span>
-      </button>
-      <button 
-        class="flex items-center justify-center gap-2 p-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors shadow-lg shadow-indigo-500/20"
-        @click="handleDownload('word')"
-      >
-        <Download size="20" />
-        <span>下载 Word 笔记</span>
+        <ApplicationTwo size="22" />
+        <span class="font-bold">进入知识卡片模式</span>
       </button>
     </div>
 
