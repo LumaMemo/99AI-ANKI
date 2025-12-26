@@ -33,7 +33,7 @@ const statusOptions = [
   { label: '失败', value: 'failed' },
 ];
 
-const getStatusType = (status: string) => {
+const getStatusType = (status: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' => {
   switch (status) {
     case 'completed': return 'success';
     case 'processing': return 'primary';
