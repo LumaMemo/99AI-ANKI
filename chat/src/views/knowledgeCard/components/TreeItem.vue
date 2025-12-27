@@ -3,6 +3,9 @@ import SvgIcon from '@/components/common/SvgIcon/index.vue'
 
 interface TreeNode {
   name: string
+  displayName?: string
+  startPage?: number
+  endPage?: number
   path: string
   relativePath: string
   isFile: boolean
@@ -70,9 +73,14 @@ function handleSelect() {
       </div>
 
       <!-- Node Name -->
-      <span class="text-sm truncate flex-1" :class="{ 'font-medium': node.isTopic || node.isOpen }">
-        {{ node.name }}
-      </span>
+      <div class="flex-1 min-w-0 flex items-center gap-1.5">
+        <span class="text-sm truncate" :class="{ 'font-medium': node.isTopic || node.isOpen }">
+          {{ node.displayName || node.name }}
+        </span>
+        <span v-if="node.startPage !== undefined && node.startPage !== null" class="shrink-0 text-[10px] opacity-40 font-mono">
+          P{{ node.startPage }}{{ node.endPage && node.endPage !== node.startPage ? `-${node.endPage}` : '' }}
+        </span>
+      </div>
     </div>
 
     <!-- Children -->
