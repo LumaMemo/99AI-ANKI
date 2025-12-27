@@ -150,22 +150,22 @@ const breadcrumbs = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full w-full overflow-hidden bg-gray-50 dark:bg-[#0a0a0a]">
+  <div class="flex w-full min-h-full bg-gray-50 dark:bg-[#0a0a0a]">
     <!-- Sidebar (Knowledge Tree) - Desktop -->
     <aside
       v-if="!isMobile"
-      class="h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 bg-white dark:bg-[#111111] z-30"
+      class="border-r border-gray-200 dark:border-gray-800 transition-all duration-300 bg-white dark:bg-[#111111] z-30"
       :class="[collapsed ? 'w-0 overflow-hidden' : 'w-[280px]']"
     >
-      <div class="flex flex-col h-full w-[280px]">
+      <div class="flex flex-col w-[280px]">
         <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <SvgIcon icon="ri:book-3-line" class="text-primary" />
             知识目录
           </h2>
         </div>
-        <div class="flex-1 overflow-hidden">
-          <KnowledgeTree v-if="pdfId" :pdf-id="pdfId" @select="handleSelect" />
+        <div>
+          <KnowledgeTree v-if="pdfId" :pdf-id="pdfId" :scrollable="false" @select="handleSelect" />
           <div v-else class="p-8 text-center text-gray-400 text-sm">
             <SvgIcon icon="ri:file-list-3-line" class="text-4xl mb-2 mx-auto opacity-20" />
             <p>请先选择一个 PDF 文件</p>
@@ -200,13 +200,13 @@ const breadcrumbs = computed(() => {
           </button>
         </div>
         <div class="flex-1 overflow-hidden">
-          <KnowledgeTree v-if="pdfId" :pdf-id="pdfId" @select="handleSelect" />
+          <KnowledgeTree v-if="pdfId" :pdf-id="pdfId" :scrollable="true" @select="handleSelect" />
         </div>
       </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 relative">
+    <main class="flex-1 min-w-0 relative">
       <!-- Header / Breadcrumbs -->
       <header class="h-14 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#111111] flex items-center px-4 gap-2 z-20">
         <button
@@ -249,28 +249,28 @@ const breadcrumbs = computed(() => {
       </header>
 
       <!-- Content Area -->
-      <div class="flex-1 overflow-hidden bg-gray-50/50 dark:bg-transparent">
+      <div class="bg-gray-50/50 dark:bg-transparent">
         <Transition name="fade" mode="out-in">
           <!-- Case 0: No PDF selected -> Show PDF Selector -->
-          <div v-if="!pdfId" class="h-full">
+          <div v-if="!pdfId">
             <PdfSelector @select="handlePdfSelect" />
           </div>
 
           <!-- Case 1: No selection or Folder selected -> Show Topic Grid -->
-          <div v-else-if="!selectedNode || !isLeafNode" class="h-full">
+          <div v-else-if="!selectedNode || !isLeafNode">
             <TopicGrid 
               v-if="selectedNode?.children || (!selectedNode && rootNodes.length > 0)"
               :topics="selectedNode?.children || rootNodes"
               :parent-name="selectedNode?.name || pdfName"
               @select="handleGridSelect"
             />
-            <div v-else-if="loading" class="h-full flex items-center justify-center">
+            <div v-else-if="loading" class="py-20 flex items-center justify-center">
               <div class="flex flex-col items-center gap-3">
                 <div class="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
                 <p class="text-sm text-gray-400">加载知识目录...</p>
               </div>
             </div>
-            <div v-else class="h-full flex flex-col items-center justify-center text-gray-400">
+            <div v-else class="py-20 flex flex-col items-center justify-center text-gray-400">
               <div class="text-center animate-in fade-in zoom-in duration-700">
                 <SvgIcon icon="ri:inbox-line" class="text-8xl mb-6 opacity-5 mx-auto" />
                 <h3 class="text-xl font-medium text-gray-400 dark:text-gray-600">暂无知识内容</h3>
@@ -280,8 +280,8 @@ const breadcrumbs = computed(() => {
           </div>
 
           <!-- Case 2: Leaf node selected -> Show Card Detail -->
-          <div v-else class="h-full p-4 md:p-8">
-            <div class="max-w-5xl mx-auto h-full">
+          <div v-else class="p-4 md:p-8">
+            <div class="max-w-5xl mx-auto">
               <CardDetail 
                 v-if="pdfId"
                 :pdf-id="pdfId"

@@ -32,7 +32,7 @@ function handleSelect(item: TopicItem) {
 </script>
 
 <template>
-  <div class="topic-grid-container p-6 md:p-10 h-full overflow-y-auto">
+  <div class="topic-grid-container p-6 md:p-10">
     <div class="max-w-6xl mx-auto">
       <div class="mb-8">
         <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">

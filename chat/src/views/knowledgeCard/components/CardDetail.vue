@@ -75,13 +75,13 @@ watch(() => props.path, () => {
 </script>
 
 <template>
-  <div class="card-detail-container h-full flex flex-col">
-    <div v-if="loading" class="flex-1 flex flex-col items-center justify-center text-gray-400">
+  <div class="card-detail-container flex flex-col">
+    <div v-if="loading" class="py-16 flex flex-col items-center justify-center text-gray-400">
       <SvgIcon icon="ri:loader-4-line" class="text-6xl mb-4 animate-spin opacity-20" />
       <p>正在加载知识点详情...</p>
     </div>
 
-    <div v-else-if="cardData" class="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div v-else-if="cardData" class="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       <!-- Card Header -->
       <div 
         class="relative p-8 rounded-t-3xl bg-white dark:bg-[#181818] border-b border-gray-100 dark:border-gray-800 shadow-sm"
@@ -114,7 +114,7 @@ watch(() => props.path, () => {
       </div>
 
       <!-- Card Body (Recursive Content) -->
-      <div class="flex-1 p-6 md:p-10 bg-white dark:bg-[#181818] overflow-y-auto">
+      <div class="p-6 md:p-10 bg-white dark:bg-[#181818]">
         <div class="max-w-4xl mx-auto space-y-8">
           <div v-for="(value, key) in cardData.content" :key="key" class="content-section">
             <h2 class="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
@@ -152,7 +152,7 @@ watch(() => props.path, () => {
       </div>
     </div>
 
-    <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400">
+    <div v-else class="py-16 flex flex-col items-center justify-center text-gray-400">
       <SvgIcon icon="ri:error-warning-line" class="text-6xl mb-4 opacity-20" />
       <p>未找到该知识点的详细内容</p>
       <button @click="loadDetail" class="mt-4 text-primary hover:underline">重试</button>
@@ -240,21 +240,7 @@ const RecursiveRenderer = defineComponent({
 </script>
 
 <style scoped>
-.card-detail-container {
-  max-height: 100%;
-}
-
 .content-section:last-child {
   margin-bottom: 0;
-}
-
-/* Custom scrollbar for the body */
-.overflow-y-auto {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.05) transparent;
-}
-
-.dark .overflow-y-auto {
-  scrollbar-color: rgba(255, 255, 255, 0.05) transparent;
 }
 </style>
