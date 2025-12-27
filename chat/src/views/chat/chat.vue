@@ -48,7 +48,7 @@ const getPagePaddingClass = computed(() => {
 
 const getContainerClass = computed(() => {
   return [
-    'h-full',
+    isKnowledgeCard.value ? 'min-h-full' : 'h-full',
     'transition-[padding]',
     'duration-300',
     { 'pl-[260px]': !isMobile.value && !collapsed.value && !isKnowledgeCard.value },
@@ -134,8 +134,8 @@ provide('createNewChatGroup', createNewChatGroup)
 
 <template>
   <div class="h-full transition-all" :class="getPagePaddingClass">
-    <div class="h-full overflow-hidden" :class="getMobileClass">
-      <div class="z-40 h-full flex" :class="getContainerClass">
+    <div class="h-full" :class="[getMobileClass, isKnowledgeCard ? 'overflow-auto' : 'overflow-hidden']">
+      <div class="z-40 flex" :class="getContainerClass">
         <Sider v-if="!isKnowledgeCard" class="h-full" />
         <router-view v-slot="{ Component }">
           <component :is="Component" class="w-full flex-1 transition-[margin] duration-500" />

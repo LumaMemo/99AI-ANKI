@@ -468,6 +468,10 @@ watch(
       usedBytes.value = 0
       loadError.value = null
       visible.value = false
+    } else {
+      // 首页顶部入口需要展示配额/已用：登录后即拉取一次，避免一直显示 0。
+      // 这里仅拉取 quota，不加载 tree/files，尽量保持“未打开抽屉不打扰”的体验。
+      loadQuota().catch(() => {})
     }
   },
   { immediate: true }

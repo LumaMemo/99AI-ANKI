@@ -7,10 +7,13 @@ import TreeItem from './TreeItem.vue'
 
 interface Props {
   pdfId: number
+  scrollable?: boolean
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits(['select'])
+
+const scrollable = computed(() => props.scrollable === true)
 
 interface TreeNode {
   name: string
@@ -143,7 +146,7 @@ watch(() => props.pdfId, () => {
 </script>
 
 <template>
-  <div class="knowledge-tree flex flex-col h-full">
+  <div class="knowledge-tree flex flex-col" :class="scrollable ? 'h-full' : ''">
     <!-- Search Bar -->
     <div class="px-4 py-2 border-b border-gray-100 dark:border-gray-800">
       <div class="relative">
@@ -157,7 +160,7 @@ watch(() => props.pdfId, () => {
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto py-2">
+    <div class="py-2" :class="scrollable ? 'flex-1 overflow-y-auto' : ''">
       <div v-if="loading" class="p-4 text-center text-gray-400 text-sm">
         <div class="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full mb-2"></div>
         <p>加载目录中...</p>

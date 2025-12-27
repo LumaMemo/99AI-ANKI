@@ -750,7 +750,35 @@ export class KbService {
     const folderPrefix = lastSlashIndex !== -1 ? record.cosKey.substring(0, lastSlashIndex + 1) : '';
     const cardPrefix = `${folderPrefix}anki_card_all/`;
 
-    // 递归列出所有对象
+    // 1. 尝试获取目录结构文件 (优先 structure_toc_final.json, 其次 structure.json)
+    let structureData: any = null;
+    const structureFiles = ['structure_toc_final.json', 'structure.json'];
+    
+    for (const fileName of structureFiles) {
+      try {
+        const structRes: any = await new Promise((resolve, reject) => {
+          cos.getObject(
+            {
+              Bucket: removeSpecialCharacters(record.cosBucket || cfg.bucket),
+              Region: removeSpecialCharacters(record.cosRegion || cfg.region),
+              Key: `${folderPrefix}${fileName}`,
+            },
+            (err, data) => {
+              if (err) return resolve(null);
+              resolve(data);
+            },
+          );
+        });
+        if (structRes && structRes.Body) {
+          structureData = JSON.parse(structRes.Body.toString());
+          if (structureData) break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    // 2. 递归列出所有对象
     const allObjects: any[] = [];
     let marker: string | undefined = undefined;
 
@@ -776,16 +804,67 @@ export class KbService {
       marker = list.IsTruncated === 'true' ? list.NextMarker : undefined;
     } while (marker);
 
-    // 构建树形结构
+    // 3. 构建树形结构
     const tree: any[] = [];
     const map = new Map<string, any>();
+
+    // 预处理 structure.json 索引
+    const orderMap = new Map<string, { order: string[]; pages: any }>();
+    const pageMap = new Map<string, any>();
+
+    if (structureData) {
+      const topLevelFolders = new Set(
+        allObjects
+          .map((obj) => {
+            const rel = obj.Key.substring(cardPrefix.length);
+            return rel ? decodeURIComponent(rel).split('/')[0] : '';
+          })
+          .filter((p) => p && p !== 'base.json'),
+      );
+
+      const traverse = (nodes: any, parentKey: string) => {
+        const children = Array.isArray(nodes) ? nodes : [nodes];
+        const orderedNames: string[] = [];
+        children.forEach((node) => {
+          if (!node.title) return;
+          const sanitized = node.title.replace(/[\\/*?:"<>|]/g, '_').trim();
+          const currentKey = parentKey ? `${parentKey}/${sanitized}` : sanitized;
+          orderedNames.push(sanitized);
+          pageMap.set(currentKey, {
+            start: node.start_page,
+            end: node.end_page,
+            title: node.title,
+          });
+          if (node.children) traverse(node.children, currentKey);
+        });
+        orderMap.set(parentKey || '', { order: orderedNames, pages: {} });
+      };
+
+      // 智能判断：如果根节点是一个对象且其标题不在实际目录中，则从其子节点开始遍历
+      if (!Array.isArray(structureData) && structureData.title) {
+        const sanitizedRoot = structureData.title.replace(/[\\/*?:"<>|]/g, '_').trim();
+        if (!topLevelFolders.has(sanitizedRoot) && structureData.children) {
+          traverse(structureData.children, '');
+        } else {
+          traverse(structureData, '');
+        }
+      } else {
+        traverse(structureData, '');
+      }
+    }
 
     allObjects.forEach((obj) => {
       const key = obj.Key as string;
       const relativePath = key.substring(cardPrefix.length);
       if (!relativePath) return;
 
-      const parts = relativePath.split('/');
+      const parts = relativePath.split('/').map((p) => {
+        try {
+          return decodeURIComponent(p);
+        } catch (e) {
+          return p;
+        }
+      });
       let currentLevel = tree;
       let currentPath = '';
 
@@ -794,8 +873,12 @@ export class KbService {
         currentPath = currentPath ? `${currentPath}/${part}` : part;
 
         if (!map.has(currentPath)) {
+          const pageInfo = pageMap.get(currentPath);
           const node = {
             name: part,
+            displayName: pageInfo ? pageInfo.title : part,
+            startPage: pageInfo?.start,
+            endPage: pageInfo?.end,
             path: key, // 完整 COS Key
             relativePath: currentPath,
             isFile,
@@ -813,6 +896,32 @@ export class KbService {
         }
       });
     });
+
+    // 4. 递归排序
+    const sortTree = (nodes: any[], parentPath: string) => {
+      const info = orderMap.get(parentPath);
+      if (info) {
+        const order = info.order;
+        nodes.sort((a, b) => {
+          const idxA = order.indexOf(a.name);
+          const idxB = order.indexOf(b.name);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.name.localeCompare(b.name);
+        });
+      } else {
+        nodes.sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      nodes.forEach((node) => {
+        if (node.children && node.children.length > 0) {
+          sortTree(node.children, node.relativePath);
+        }
+      });
+    };
+
+    sortTree(tree, '');
 
     return tree;
   }

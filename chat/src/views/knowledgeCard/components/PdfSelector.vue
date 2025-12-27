@@ -68,8 +68,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-6 md:p-10">
-    <div class="max-w-6xl mx-auto w-full flex-1 flex flex-col">
+  <div class="flex flex-col p-6 md:p-10">
+    <div class="max-w-6xl mx-auto w-full flex flex-col">
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
           <div class="w-12 h-12 rounded-2xl bg-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -93,19 +93,19 @@ onMounted(() => {
         </template>
       </div>
 
-      <div v-if="loading" class="flex-1 flex items-center justify-center">
+      <div v-if="loading" class="py-20 flex items-center justify-center">
         <div class="flex flex-col items-center gap-3">
           <div class="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
           <span class="text-sm text-gray-400">加载知识库...</span>
         </div>
       </div>
 
-      <div v-else-if="!folders.length && !files.length" class="flex-1 flex flex-col items-center justify-center text-gray-400">
+      <div v-else-if="!folders.length && !files.length" class="py-20 flex flex-col items-center justify-center text-gray-400">
         <SvgIcon icon="ri:folder-open-line" class="text-6xl mb-4 opacity-20" />
         <p>当前目录下暂无文件</p>
       </div>
 
-      <div v-else class="flex-1 overflow-y-auto custom-scrollbar pr-2">
+      <div v-else class="pr-2">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <!-- Folders -->
           <div 

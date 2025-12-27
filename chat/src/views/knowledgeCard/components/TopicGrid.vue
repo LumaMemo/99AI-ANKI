@@ -4,6 +4,9 @@ import SvgIcon from '@/components/common/SvgIcon/index.vue'
 
 interface TopicItem {
   name: string
+  displayName?: string
+  startPage?: number
+  endPage?: number
   path: string
   isLeaf: boolean
   children?: TopicItem[]
@@ -18,11 +21,9 @@ const props = defineProps<Props>()
 const emit = defineEmits(['select'])
 
 const sortedTopics = computed(() => {
-  return [...props.topics].sort((a, b) => {
-    // Folders first, then leaf nodes
-    if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1
-    return a.name.localeCompare(b.name)
-  })
+  // If the backend already sorted them (which it should now), we just return them.
+  // But we keep the folder-first logic as a fallback if needed.
+  return [...props.topics]
 })
 
 function handleSelect(item: TopicItem) {
@@ -31,7 +32,7 @@ function handleSelect(item: TopicItem) {
 </script>
 
 <template>
-  <div class="topic-grid-container p-6 md:p-10 h-full overflow-y-auto">
+  <div class="topic-grid-container p-6 md:p-10">
     <div class="max-w-6xl mx-auto">
       <div class="mb-8">
         <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
@@ -65,11 +66,16 @@ function handleSelect(item: TopicItem) {
 
             <div class="flex-1 min-w-0">
               <h3 class="font-bold text-gray-800 dark:text-gray-200 mb-1 truncate group-hover:text-primary transition-colors">
-                {{ item.name }}
+                {{ item.displayName || item.name }}
               </h3>
-              <p class="text-xs text-gray-400 truncate">
-                {{ item.isLeaf ? '知识卡片' : '目录' }}
-              </p>
+              <div class="flex items-center gap-2">
+                <p class="text-xs text-gray-400 truncate">
+                  {{ item.isLeaf ? '知识卡片' : '目录' }}
+                </p>
+                <span v-if="item.startPage !== undefined && item.startPage !== null" class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-400 font-mono">
+                  P{{ item.startPage }}{{ item.endPage && item.endPage !== item.startPage ? `-${item.endPage}` : '' }}
+                </span>
+              </div>
             </div>
           </div>
 

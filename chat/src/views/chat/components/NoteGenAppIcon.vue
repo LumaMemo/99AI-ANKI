@@ -17,7 +17,7 @@ async function handleClick() {
 
 <template>
   <div
-    class="absolute left-4 top-20 z-8 cursor-pointer group"
+    class="absolute left-4 top-20 z-20 cursor-pointer group"
     title="笔记生成"
     @click="handleClick"
   >
